@@ -45,8 +45,11 @@ Mat PageFrameDetectionFilteringBased::binarize_image() {
     auto mean_matrix = new unsigned char*[input_image.size[0]];
     for (int i=0; i<input_image.size[0]; ++i) {
         mean_matrix[i] = new unsigned char[input_image.size[1]];
+        for (int j=0; j<input_image.size[1]; ++j) {
+            mean_matrix[i][j] = 0;
+        }
     }
-    block_mean(input_image, mean_matrix, BLOCK_SIZE);
+    block_mean(input_image, mean_matrix, CHUNK_SIZE_FILTERING);
 
     // The filtering step is performed
     filtered_image = edge_detection(blurred_image);
@@ -59,9 +62,14 @@ Mat PageFrameDetectionFilteringBased::binarize_image() {
     // The binarization step
     Mat binarized_image = input_image.clone();
     binarized_image.forEach<unsigned char>([mask, mean_matrix] (unsigned char &value, const int* p) -> void {
-        unsigned char mask_value = mask.at<unsigned char>(p[0], p[1]);
-        if (mask_value) {
-            value = value < mean_matrix[p[0]][p[1]] - SIGMA / 2 ? 0 : 255;
+        int y = p[0], x = p[1];
+        if (y <= CHUNK_SIZE_FILTERING/2 || x <= CHUNK_SIZE_FILTERING/2 || y >= mask.size[0] - CHUNK_SIZE_FILTERING/2 || x >= mask.size[1] - CHUNK_SIZE_FILTERING/2) {
+            value = 255;
+            return;
+        }
+
+        if (mask.at<unsigned char>(y, x)) {
+            value = value > mean_matrix[y][x] - SIGMA ? 255 : 0;
         }
         else {
             value = 255;
@@ -93,7 +101,6 @@ Mat stats_based_image_binarization(Mat working_image, int block_size, int chunk_
     efficient_image_stats_calculation(working_image, chunk_mean_matrix, chunk_var_matrix, chunk_size);
     float var_th = mmean(var_matrix, offset, working_image.size[0]-offset, offset, working_image.size[1]-offset);
 
-
     Mat binarized_image = working_image.clone();
     binarized_image.forEach<unsigned char>([working_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, correction_offset] (unsigned char &value, const int* position) -> void
     {
@@ -103,14 +110,12 @@ Mat stats_based_image_binarization(Mat working_image, int block_size, int chunk_
         }
 
         int y = position[0], x = position[1];
-        unsigned char chunk_mean = chunk_mean_matrix[y][x];
-        float chunk_var = chunk_var_matrix[y][x];
 
-        if (chunk_var < var_th) {
+        if (chunk_var_matrix[y][x] < var_th) {
             value = 255;
         }
         else {
-            value = value > chunk_mean - correction_offset ? 255 : 0;
+            value = value > chunk_mean_matrix[y][x] - correction_offset ? 255 : 0;
         }
     }
     );

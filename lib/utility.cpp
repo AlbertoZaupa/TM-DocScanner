@@ -101,6 +101,22 @@ int mmode(unsigned char** mat, int y_low, int y_high, int x_low, int x_high) {
 }
 
 /*
+ The function computes the minimum value of an image
+*/
+
+unsigned char imin(Mat m) {
+    int min = 255;
+    int grey_value;
+    for (int i=0; i<m.size[0]; i++) {
+        for (int j=0; j<m.size[1]; ++j) {
+            grey_value = m.at<unsigned char>(i, j);
+            if (grey_value < min) min = grey_value;
+        }
+    }
+    return min;
+}
+
+/*
  The function computes the minimum of the two values
 */
 
@@ -224,12 +240,32 @@ float mvar(Mat m, unsigned char mean, int y_low, int y_high, int x_low, int x_hi
 }
 
 /*
- The function efficiently computes, for each pixel of the image, the mean value of a block centered on that pixel
+ The function computes, for each pixel of the image, the minimum value of a block centered on that pixel
+*/
+
+void block_min(Mat m, unsigned char **min_matrix, int block_size) {
+    if (!block_size%2) {
+        std::cerr<<"utility.block_min(): The value of the block size must be an odd number\n";
+        exit(1);
+    }
+    int offset = block_size/2;
+    
+    Rect slice;
+    for (int i=offset; i<m.size[0]-offset; i++) {
+        for (int j=offset; j<m.size[1]-offset; ++j) {
+            slice = Rect(j-offset, i-offset, block_size, block_size);
+            min_matrix[i][j] = imin(m(slice));
+        }
+    }
+}
+
+/*
+ The function computes, for each pixel of the image, the mean value of a block centered on that pixel
 */
 
 void block_mean(Mat m, unsigned char **mean_matrix, int block_size) {
     if (!block_size%2) {
-        std::cerr<<"utility.efficient_mean(): The value of the block size must be an odd number\n";
+        std::cerr<<"utility.block_mean(): The value of the block size must be an odd number\n";
         exit(1);
     }
     int offset = block_size/2;
@@ -276,7 +312,7 @@ void block_mean(Mat m, unsigned char **mean_matrix, int block_size) {
 }
 
 /*
- The function efficiently computes, for each pixel of the image, the variance of a block centered on that pixel
+ The function computes, for each pixel of the image, the variance of a block centered on that pixel
  */
 
 void efficient_image_stats_calculation(Mat m, unsigned char **mean_matrix, float **var_matrix, int block_size) {

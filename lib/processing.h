@@ -6,7 +6,8 @@
 #include "opencv2/opencv.hpp"
 #define BLOCK_SIZE 9
 #define CHUNK_SIZE 37 // 4 x BLOCK_SIZE + 1
-#define SIGMA 10 // Experimentally assigned value
+#define CHUNK_SIZE_FILTERING 17
+#define SIGMA 10
 #define EROSION_BOUNDARY 100
 #define HIGH_PASS_KERNEL_SIZE 11
 #define LARGE_BLUR_KERNEL_SIZE 51
