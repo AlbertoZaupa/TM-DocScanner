@@ -117,18 +117,26 @@ unsigned char imin(Mat m) {
 }
 
 /*
- The function computes the minimum of the two values
+ These functions computes the minimum of the two values
 */
 
 int min(int a, int b) {
     return a > b ? b : a;
 }
 
+float min(float a, float b) {
+    return a > b ? b : a;
+}
+
 /*
- The function computes the maximum of the two values
+ These functions compute the maximum of the two values
 */
 
 int max(int a, int b) {
+    return a > b ? a : b;
+}
+
+float max(float a, float b) {
     return a > b ? a : b;
 }
 
@@ -315,7 +323,7 @@ void block_mean(Mat m, unsigned char **mean_matrix, int block_size) {
  The function computes, for each pixel of the image, the variance of a block centered on that pixel
  */
 
-void efficient_image_stats_calculation(Mat m, unsigned char **mean_matrix, float **var_matrix, int block_size) {
+void block_stats(Mat m, unsigned char **mean_matrix, float **var_matrix, int block_size) {
     if (!block_size%2) {
         std::cerr<<"utility.efficient_image_stats_calculation(): The value of the block size must be an odd number\n";
         exit(1);
@@ -429,4 +437,21 @@ float othsu_threshold(int* histogram, int block_area) {
     }
 
     return otsu_th;
+}
+
+/*
+ These functions rescale a matrix
+ */
+
+void rescale_matrix(const Mat& m, float prev_max, float desired_max) {
+    m.forEach<uchar>([prev_max, desired_max] (uchar &value, const int* p) -> void {
+        value = abs( value / prev_max) * desired_max;
+    });
+}
+
+void rescale_matrix(const Mat& m, float desired_max) {
+    double min_value, max_value;
+    minMaxLoc(m, &min_value, &max_value);
+    float prev_max = max(abs(min_value), abs(max_value));
+    rescale_matrix(m, prev_max, desired_max);
 }

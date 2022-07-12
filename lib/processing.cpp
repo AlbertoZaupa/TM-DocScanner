@@ -1,140 +1,22 @@
 //
-// Created by Alberto Zaupa on 07/07/22.
+// Created by Alberto Zaupa on 12/07/22.
 //
 
 #include "processing.h"
 #include "utility.h"
+#include "opencv2/opencv.hpp"
 
-Mat ProcessingPipeline::execute() {
-    PageFrameDetectionFilteringBased detection = PageFrameDetectionFilteringBased(image);
+using namespace cv;
 
-    return detection.get_page_frame();
-}
+Rect erosion(const Mat &filtered_image, int EROSION_BOUNDARY) {
+    // To simplify the erosion process, it is assumed that the borderds of the page frame are within the external image frame
+    // of width IMAGE_WIDTH/2 and height IMAGE_HEIGHT/2
+    int margin_search_x_bound = filtered_image.size[1] / 2;
+    int margin_search_y_bound = filtered_image.size[0] / 2;
 
-Mat PageFrameDetectionStatsBased::get_page_frame() {
-    get_margin_search_bounds();
-    Mat filtered_image = edge_detection(blurred_image);
-    polish_filtered_image(filtered_image);
-    working_slice = erosion(filtered_image, margin_search_y_bound, margin_search_x_bound);
-    filtered_image.deallocate();
-    Mat binarized_image = binarize_image();
-
-    return binarized_image;
-}
-
-Mat PageFrameDetectionStatsBased::binarize_image() {
-    Mat working_image = input_image(working_slice);
-    // For each pixel of the image the mean and variance of its neighbouring pixels are computed.
-    // This statistics are computed on neighbourhoods of two different sizes.
-    return stats_based_image_binarization(working_image, BLOCK_SIZE, CHUNK_SIZE, SIGMA);
-}
-
-Mat PageFrameDetectionFilteringBased::get_page_frame() {
-    Mat binarized_image = binarize_image();
-    polish_filtered_image(filtered_image);
-    get_margin_search_bounds();
-
-    Mat output = binarized_image(erosion(filtered_image, margin_search_y_bound, margin_search_x_bound));
-    binarized_image.deallocate();
-    filtered_image.deallocate();
-    return output;
-}
-
-Mat PageFrameDetectionFilteringBased::binarize_image() {
-    // For each pixel of the image the mean of the surrounding block is computed
-    auto mean_matrix = new unsigned char*[input_image.size[0]];
-    for (int i=0; i<input_image.size[0]; ++i) {
-        mean_matrix[i] = new unsigned char[input_image.size[1]];
-        for (int j=0; j<input_image.size[1]; ++j) {
-            mean_matrix[i][j] = 0;
-        }
-    }
-    block_mean(input_image, mean_matrix, CHUNK_SIZE_FILTERING);
-
-    // The filtering step is performed
-    filtered_image = edge_detection(blurred_image);
-
-    // The mask for the binarization process is computed
-    Mat mask;
-    GaussianBlur(filtered_image, mask, Size(LARGE_BLUR_KERNEL_SIZE, LARGE_BLUR_KERNEL_SIZE), 0, 0);
-    threshold(mask.clone(), mask, LARGE_BLUR_POLISH_TH, 255, THRESH_BINARY);
-
-    // The binarization step
-    Mat binarized_image = input_image.clone();
-    binarized_image.forEach<unsigned char>([mask, mean_matrix] (unsigned char &value, const int* p) -> void {
-        int y = p[0], x = p[1];
-        if (y <= CHUNK_SIZE_FILTERING/2 || x <= CHUNK_SIZE_FILTERING/2 || y >= mask.size[0] - CHUNK_SIZE_FILTERING/2 || x >= mask.size[1] - CHUNK_SIZE_FILTERING/2) {
-            value = 255;
-            return;
-        }
-
-        if (mask.at<unsigned char>(y, x)) {
-            value = value > mean_matrix[y][x] - SIGMA ? 255 : 0;
-        }
-        else {
-            value = 255;
-        }
-    });
-
-    // Memory cleanup
-    for (int i=0; i<input_image.size[0]; ++i) delete[] mean_matrix[i];
-    delete[] mean_matrix;
-    mask.deallocate();
-
-    return binarized_image;
-}
-
-Mat stats_based_image_binarization(Mat working_image, int block_size, int chunk_size, int correction_offset) {
-    // For each pixel of the image the mean and variance of its neighbouring pixels are computed.
-    // This statistics are computed on neighbourhoods of two different sizes.
-    auto mean_matrix = new unsigned char*[working_image.size[0]], chunk_mean_matrix = new unsigned char*[working_image.size[0]];
-    auto var_matrix = new float*[working_image.size[0]], chunk_var_matrix = new float*[working_image.size[0]];
-    for (int i=0; i<working_image.size[0]; ++i) {
-        mean_matrix[i] = new unsigned char[working_image.size[1]];
-        chunk_mean_matrix[i] = new unsigned char[working_image.size[1]];
-        var_matrix[i] = new float[working_image.size[1]];
-        chunk_var_matrix[i] = new float[working_image.size[1]];
-    }
-    int offset = chunk_size/2;
-
-    efficient_image_stats_calculation(working_image, mean_matrix, var_matrix, block_size);
-    efficient_image_stats_calculation(working_image, chunk_mean_matrix, chunk_var_matrix, chunk_size);
-    float var_th = mmean(var_matrix, offset, working_image.size[0]-offset, offset, working_image.size[1]-offset);
-
-    Mat binarized_image = working_image.clone();
-    binarized_image.forEach<unsigned char>([working_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, correction_offset] (unsigned char &value, const int* position) -> void
-    {
-        if (position[0] < offset || position[1] < offset || position[0] >= working_image.size[0]-offset || position[1] >= working_image.size[1]-offset) {
-            value = 255;
-            return;
-        }
-
-        int y = position[0], x = position[1];
-
-        if (chunk_var_matrix[y][x] < var_th) {
-            value = 255;
-        }
-        else {
-            value = value > chunk_mean_matrix[y][x] - correction_offset ? 255 : 0;
-        }
-    }
-    );
-
-    for (int i=0; i<working_image.size[0]; ++i) {
-        delete[] mean_matrix[i];
-        delete[] chunk_mean_matrix[i];
-        delete[] var_matrix[i];
-        delete[] chunk_var_matrix[i];
-    }
-    delete[] mean_matrix;
-    delete[] chunk_mean_matrix;
-    delete[] var_matrix;
-    delete[] chunk_var_matrix;
-
-    return binarized_image;
-}
-
-Rect erosion(Mat filtered_image, int margin_search_y_bound, int margin_search_x_bound) {
+    // The erosion algorithm has aims to find the corners of the image. Its behavior can be pictured as a square moving 
+    // from left to right, right to left, top to bottom and bottom to top, and stopping as soon as its leading side finds
+    // a straight white line. 
     unsigned char boundary;
     int TL_corner[2], TR_corner[2], BL_corner[2], BR_corner[2];
 
@@ -283,57 +165,53 @@ Rect erosion(Mat filtered_image, int margin_search_y_bound, int margin_search_x_
     return {x_offset, y_offset, width, height};
 }
 
-Mat edge_detection(Mat input_image) {
+Mat edge_detection(const Mat& input_image, int KERNEL_SIZE) {
+    if (!KERNEL_SIZE%2) {
+        std::cerr<<"processing.edge_detection(): The kernel size must be an odd number\n";
+        exit(1);
+    }
+
     // The filters' kernels are initialized
-    Mat right_left_filter = Mat(1, HIGH_PASS_KERNEL_SIZE, CV_16S);
-    Mat left_right_filter = Mat(1, HIGH_PASS_KERNEL_SIZE, CV_16S);
-    Mat top_bottom_filter = Mat(HIGH_PASS_KERNEL_SIZE, 1, CV_16S);
-    Mat bottom_top_filter = Mat(HIGH_PASS_KERNEL_SIZE, 1, CV_16S);
-    left_right_filter.forEach<int16_t>([] (int16_t &value, const int* p) -> void {
-        if (p[1] < HIGH_PASS_KERNEL_SIZE/2) value = -1;
-        else if (p[1] > HIGH_PASS_KERNEL_SIZE/2) value = 1;
+    Mat right_left_filter = Mat(1, KERNEL_SIZE, CV_32S);
+    Mat left_right_filter = Mat(1, KERNEL_SIZE, CV_32S);
+    Mat top_bottom_filter = Mat(KERNEL_SIZE, 1, CV_32S);
+    Mat bottom_top_filter = Mat(KERNEL_SIZE, 1, CV_32S);
+    //float filter_coefficient = (float) 2 / (float) KERNEL_SIZE; // each side of the filter calculates the mean of its side
+    left_right_filter.forEach<int32_t>([KERNEL_SIZE] (int32_t &value, const int* p) -> void {
+        if (p[1] < KERNEL_SIZE/2) value = -1;
+        else if (p[1] > KERNEL_SIZE/2) value = 1;
         else value = 0;
     });
-    right_left_filter.forEach<int16_t>([] (int16_t &value, const int* p) -> void {
-        if (p[1] < HIGH_PASS_KERNEL_SIZE/2) value = 1;
-        else if (p[1] > HIGH_PASS_KERNEL_SIZE/2) value = -1;
+    right_left_filter.forEach<int32_t>([KERNEL_SIZE] (int32_t &value, const int* p) -> void {
+        if (p[1] < KERNEL_SIZE/2) value = 1;
+        else if (p[1] > KERNEL_SIZE/2) value = -1;
         else value = 0;
     });
-    top_bottom_filter.forEach<int16_t>([] (int16_t &value, const int* p) -> void {
-        if (p[0] < HIGH_PASS_KERNEL_SIZE/2) value = -1;
-        else if (p[0] > HIGH_PASS_KERNEL_SIZE/2) value = 1;
+    top_bottom_filter.forEach<int32_t>([KERNEL_SIZE] (int32_t &value, const int* p) -> void {
+        if (p[0] < KERNEL_SIZE/2) value = -1;
+        else if (p[0] > KERNEL_SIZE/2) value = 1;
         else value = 0;
     });
-    bottom_top_filter.forEach<int16_t>([] (int16_t &value, const int* p) -> void {
-        if (p[0] < HIGH_PASS_KERNEL_SIZE/2) value = 1;
-        else if (p[0] > HIGH_PASS_KERNEL_SIZE/2) value = -1;
+    bottom_top_filter.forEach<int32_t>([KERNEL_SIZE] (int32_t &value, const int* p) -> void {
+        if (p[0] < KERNEL_SIZE/2) value = 1;
+        else if (p[0] > KERNEL_SIZE/2) value = -1;
         else value = 0;
     });
 
     // The matrices where the output of the filtering process will reside
-    Mat right_left_output = Mat::zeros(input_image.size(), CV_16S);
-    Mat left_right_output = Mat::zeros(input_image.size(), CV_16S);
-    Mat top_bottom_output = Mat::zeros(input_image.size(), CV_16S);
-    Mat bottom_top_output = Mat::zeros(input_image.size(), CV_16S);
+    Mat right_left_output = Mat::zeros(input_image.size(), CV_32F);
+    Mat left_right_output = Mat::zeros(input_image.size(), CV_32F);
+    Mat top_bottom_output = Mat::zeros(input_image.size(), CV_32F);
+    Mat bottom_top_output = Mat::zeros(input_image.size(), CV_32F);
     Mat filtered_image = Mat::zeros(input_image.size(), 0);
 
     // All 4 filters are applied
     filter2D(input_image, left_right_output, -1, left_right_filter, Point(-1, -1), 0, BORDER_DEFAULT);
-    filtered_image.forEach<unsigned char>([left_right_output] (unsigned char &value, const int* p) -> void {
-        value |= (unsigned char) left_right_output.at<unsigned char>(p[0], p[1]);
-    });
     filter2D(input_image, right_left_output, -1, right_left_filter, Point(-1, -1), 0, BORDER_DEFAULT);
-    filtered_image.forEach<unsigned char>([right_left_output] (unsigned char &value, const int* p) -> void {
-        value |= (unsigned char) right_left_output.at<unsigned char>(p[0], p[1]);
-    });
     filter2D(input_image, top_bottom_output, -1, top_bottom_filter, Point(-1, -1), 0, BORDER_DEFAULT);
-    filtered_image.forEach<unsigned char>([top_bottom_output] (unsigned char &value, const int* p) -> void {
-        value |= (unsigned char) top_bottom_output.at<unsigned char>(p[0], p[1]);
-    });
     filter2D(input_image, bottom_top_output, -1, bottom_top_filter, Point(-1, -1), 0, BORDER_DEFAULT);
-    filtered_image.forEach<unsigned char>([bottom_top_output] (unsigned char &value, const int* p) -> void {
-        value |= (unsigned char) bottom_top_output.at<unsigned char>(p[0], p[1]);
-    });
+    filtered_image = left_right_output+right_left_output+top_bottom_output+bottom_top_output;
+    if (filtered_image.channels() == 3) cvtColor(filtered_image, filtered_image, COLOR_RGB2GRAY);
 
     // Freeing up memory
     left_right_output.deallocate(); right_left_output.deallocate(); top_bottom_output.deallocate(); bottom_top_output.deallocate();
@@ -342,31 +220,89 @@ Mat edge_detection(Mat input_image) {
     return filtered_image;
 }
 
-void PageFrameDetection::polish_filtered_image(Mat filtered_image) {
-    Mat src = filtered_image.clone();
-    GaussianBlur(src, filtered_image, Size(SMALL_BLUR_KERNEL_SIZE, SMALL_BLUR_KERNEL_SIZE), 0, 0);
-    src.deallocate();
+Mat stats_based_image_binarization(const Mat &input_image, int BLOCK_SIZE, int CHUNK_SIZE, int CORRECTION_OFFSET) {
+    Mat binarized_image = input_image.clone();
+    if (binarized_image.channels() == 3) cvtColor(binarized_image, binarized_image, COLOR_RGB2GRAY);
+    // For each pixel of the image the mean and variance of its neighbouring pixels are computed.
+    // This statistics are computed on neighbourhoods of two different sizes.
+    auto mean_matrix = new unsigned char*[input_image.size[0]], chunk_mean_matrix = new unsigned char*[input_image.size[0]];
+    auto var_matrix = new float*[input_image.size[0]], chunk_var_matrix = new float*[input_image.size[0]];
+    for (int i=0; i<input_image.size[0]; ++i) {
+        mean_matrix[i] = new unsigned char[input_image.size[1]];
+        chunk_mean_matrix[i] = new unsigned char[input_image.size[1]];
+        var_matrix[i] = new float[input_image.size[1]];
+        chunk_var_matrix[i] = new float[input_image.size[1]];
+    }
+    int offset = CHUNK_SIZE/2;
 
-    src = filtered_image.clone();
-    threshold(src, filtered_image, SMALL_BLUR_POLISH_TH, 255, THRESH_BINARY);
-    src.deallocate();
+    block_stats(binarized_image, mean_matrix, var_matrix, BLOCK_SIZE);
+    block_stats(binarized_image, chunk_mean_matrix, chunk_var_matrix, CHUNK_SIZE);
+    float var_th = mmean(var_matrix, offset, input_image.size[0]-offset, offset, input_image.size[1]-offset);
+
+    binarized_image.forEach<unsigned char>([input_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, CORRECTION_OFFSET] (unsigned char &value, const int* position) -> void
+    {
+        if (position[0] < offset || position[1] < offset || position[0] >= input_image.size[0]-offset || position[1] >= input_image.size[1]-offset) {
+            value = 255;
+            return;
+        }
+
+        int y = position[0], x = position[1];
+
+        if (chunk_var_matrix[y][x] < var_th) {
+            value = 255;
+        }
+        else {
+            value = value > chunk_mean_matrix[y][x] - CORRECTION_OFFSET ? 255 : 0;
+        }
+    }
+    );
+
+    for (int i=0; i<input_image.size[0]; ++i) {
+        delete[] mean_matrix[i];
+        delete[] chunk_mean_matrix[i];
+        delete[] var_matrix[i];
+        delete[] chunk_var_matrix[i];
+    }
+    delete[] mean_matrix;
+    delete[] chunk_mean_matrix;
+    delete[] var_matrix;
+    delete[] chunk_var_matrix;
+
+    return binarized_image;
 }
 
-void PageFrameDetection::get_margin_search_bounds() {
-    margin_search_x_bound = input_image.size[1] / 4;
-    margin_search_y_bound = input_image.size[0] / 4;
-}
+Mat filtering_based_image_binarization(const Mat &input_image, const Mat &filtered_image, int BLOCK_SIZE, int CORRECTION_OFFSET) {
+    Mat binarized_image = input_image.clone();
+    if (binarized_image.channels() == 3) cvtColor(binarized_image, binarized_image, COLOR_RGB2GRAY);
+    // For each pixel of the image the mean of the surrounding block is computed
+    auto mean_matrix = new unsigned char*[input_image.size[0]];
+    for (int i=0; i<input_image.size[0]; ++i) {
+        mean_matrix[i] = new unsigned char[input_image.size[1]];
+        for (int j=0; j<input_image.size[1]; ++j) {
+            mean_matrix[i][j] = 0;
+        }
+    }
+    block_mean(binarized_image, mean_matrix, BLOCK_SIZE);
 
-ProcessingPipeline::ProcessingPipeline(Mat image) {
-    this->image = image;
-}
+    // The binarization step
+    binarized_image.forEach<unsigned char>([filtered_image, mean_matrix, BLOCK_SIZE, CORRECTION_OFFSET] (unsigned char &value, const int* p) -> void {
+        int y = p[0], x = p[1];
+        if (y <= BLOCK_SIZE/2 || x <= BLOCK_SIZE/2 || y >= filtered_image.size[0] - BLOCK_SIZE/2 || x >= filtered_image.size[1] - BLOCK_SIZE/2) {
+            value = 255;
+            return;
+        }
 
-PageFrameDetectionStatsBased::PageFrameDetectionStatsBased(Mat image) {
-    input_image = image;
-    GaussianBlur(image, blurred_image, Size(LARGE_BLUR_KERNEL_SIZE, LARGE_BLUR_KERNEL_SIZE), 0, 0);
-}
+        if (filtered_image.at<unsigned char>(y, x)) {
+            value = value > mean_matrix[y][x] - CORRECTION_OFFSET ? 255 : 0;
+        }
+        else {
+            value = 255;
+        }
+    });
 
-PageFrameDetectionFilteringBased::PageFrameDetectionFilteringBased(Mat image) {
-    input_image = image;
-    GaussianBlur(image, blurred_image, Size(LARGE_BLUR_KERNEL_SIZE, LARGE_BLUR_KERNEL_SIZE), 0, 0);
+    // Memory cleanup
+    for (int i=0; i<input_image.size[0]; ++i) delete[] mean_matrix[i];
+    delete[] mean_matrix;
+
+    return binarized_image;
 }
