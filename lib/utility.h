@@ -25,8 +25,6 @@ float mstddev(float **m, float mean, int y_low, int y_high, int x_low, int x_hig
 float mstddev(Mat m, float mean, int y_low, int y_high, int x_low, int x_high);
 float mvar(Mat m, float mean, int y_low, int y_high, int x_low, int x_high);
 void block_min(Mat m, unsigned char **min_matrix, int block_size);
-void block_mean(Mat m, unsigned char **mean_matrix, int block_size);
-void block_stats(Mat m, unsigned char **mean_matrix, float **var_matrix, int block_size);
 float mmax(float** m, int y_low, int y_high, int x_low, int x_high);
 int* mhistogram(Mat m, int y_low, int y_high, int x_low, int x_high);
 float othsu_threshold(int* histogram, int block_area);

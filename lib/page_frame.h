@@ -20,23 +20,13 @@ public:
     static int CHASE_DEPTH;
     static int TOLERANCE_FACTOR;
     static int ALLOW_SHIFT;
+    static int RUDIMENTARY_DEPTH;
 
     explicit PageFrame(int chase_depth, int tolerance_factor, int allow_shift);
 };
 
-class CornerCandidate {
-public:
-    int col, row;
-    bool col_confidence, row_confidence;
-
-    explicit CornerCandidate(int col, int row, bool col_confidence, bool row_confidence);
-    static void pick_col(CornerCandidate &target, CornerCandidate &c1, CornerCandidate &c2,
-                         int (*col_discriminating_func) (int, int));
-    static void pick_row(CornerCandidate &target, CornerCandidate &c1, CornerCandidate &c2,
-                         int (*row_discriminating_func) (int, int));
-};
-
-Rect find_page_frame(const Mat &filtered_image);
+Rect get_page_frame(const Mat &filtered_image);
+Rect rudimentary_get_page_frame(const Mat &filtered_image);
 bool edge_chase(const Mat &image, int row, int col, int chase_direction);
 bool valid_pixel(const Mat &image, int row, int col);
 
