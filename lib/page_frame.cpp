@@ -1,8 +1,9 @@
 #include "page_frame.h"
 #include "opencv2/opencv.hpp"
+#include "utility.h"
 using namespace cv;
 
-int PageFrame::CHASE_DEPTH = 200;
+int PageFrame::CHASE_DEPTH = 400;
 int PageFrame::TOLERANCE_FACTOR = 20;
 int PageFrame::ALLOW_SHIFT = 4;
 
@@ -10,133 +11,176 @@ Rect find_page_frame(const Mat &filtered_image) {
     int margin_search_x_bound = filtered_image.size[1] / 2;
     int margin_search_y_bound = filtered_image.size[0] / 2;
 
-    int TL_corner[2], TR_corner[2], BL_corner[2], BR_corner[2];
-    int X_stop[2] = {0, 0}, Y_stop[2] = {0, 0};
+    CornerCandidate TL_corner(0, 0, false, false);
+    CornerCandidate TR_corner(filtered_image.size[1] - 1, 0, false, false);
+    CornerCandidate BL_corner(0, filtered_image.size[0] - 1, false, false);
+    CornerCandidate BR_corner(filtered_image.size[1] - 1, filtered_image.size[0] - 1, false, false);
+
+    auto X_corner = new CornerCandidate(0, 0, false, false);
+    auto Y_corner = new CornerCandidate(0, 0, false, false);
+    bool found_margin = false;
 
     // Top Left corner search
-    for (int row=0; row<margin_search_y_bound; ++row) {
-        for (int col=0; col<margin_search_x_bound; ++col) {
+    for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
+        for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
             if (edge_chase(filtered_image, row, col, N_S)) {
-                X_stop[0] = row;
-                X_stop[1] = col;
-                break;
+                X_corner->row = row;
+                X_corner->col = col;
+                X_corner->row_confidence = false;
+                X_corner->col_confidence = true;
+                found_margin = true;
             }
         }
     }
-    for (int col=0; col<margin_search_x_bound; ++col) {
-        for (int row=0; row<margin_search_y_bound; ++row) {
+    found_margin = false;
+    for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
+        for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
             if (edge_chase(filtered_image, row, col, W_E)) {
-                Y_stop[0] = row;
-                Y_stop[1] = col;
-                break;
+                Y_corner->row = row;
+                Y_corner->col = col;
+                Y_corner->row_confidence = true;
+                Y_corner->col_confidence = false;
+                found_margin = true;
             }
         }
     }
-    TL_corner[0] = min(X_stop[0], Y_stop[0]);
-    TL_corner[1] = min(X_stop[1], Y_stop[1]);
+    CornerCandidate::pick_col(TL_corner, *X_corner, *Y_corner, min);
+    CornerCandidate::pick_row(TL_corner, *X_corner, *Y_corner, min);
+    delete X_corner;
+    delete Y_corner;
 
     // Top right corner search
-    X_stop[0] = 0; X_stop[1] = filtered_image.size[1] - 1;
-    Y_stop[0] = 0; Y_stop[1] = filtered_image.size[1] - 1;
-    for (int row=0; row<margin_search_y_bound; ++row) {
-        for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound; --col) {
+    X_corner = new CornerCandidate(filtered_image.size[1] - 1, 0, false, false);
+    Y_corner = new CornerCandidate(filtered_image.size[1] - 1, 0, false, false);
+    found_margin = false;
+    for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
+        for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
             if (edge_chase(filtered_image, row, col, N_S)) {
-                X_stop[0] = row;
-                X_stop[1] = col;
-                break;
+                X_corner->row = row;
+                X_corner->col = col;
+                X_corner->row_confidence = false;
+                X_corner->col_confidence = true;
+                found_margin = true;
             }
         }
     }
-    for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound; --col) {
-        for (int row=0; row<margin_search_y_bound; ++row) {
+    found_margin = false;
+    for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
+        for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
             if (edge_chase(filtered_image, row, col, E_W)) {
-                Y_stop[0] = row;
-                Y_stop[1] = col;
-                break;
+                Y_corner->row = row;
+                Y_corner->col = col;
+                Y_corner->row_confidence = true;
+                Y_corner->col_confidence = false;
+                found_margin = true;
             }
         }
     }
-    TR_corner[0] = min(X_stop[0], Y_stop[0]);
-    TR_corner[1] = max(X_stop[1], Y_stop[1]);
+    CornerCandidate::pick_col(TR_corner, *X_corner, *Y_corner, max);
+    CornerCandidate::pick_row(TR_corner, *X_corner, *Y_corner, min);
+    delete X_corner;
+    delete Y_corner;
 
     // Bottom left corner search
-    X_stop[0] = filtered_image.size[0] - 1; X_stop[1] = 0;
-    Y_stop[0] = filtered_image.size[0] - 1; Y_stop[1] = 0;
-    for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound; --row) {
-        for (int col=0; col<margin_search_x_bound; ++col) {
+    X_corner = new CornerCandidate(0, filtered_image.size[0] - 1, false, false);
+    Y_corner = new CornerCandidate(0, filtered_image.size[0] - 1, false, false);
+    found_margin = false;
+    for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
+        for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
             if (edge_chase(filtered_image, row, col, S_N)) {
-                X_stop[0] = row;
-                X_stop[1] = col;
-                break;
+                X_corner->row = row;
+                X_corner->col = col;
+                X_corner->row_confidence = false;
+                X_corner->col_confidence = true;
+                found_margin = true;
             }
         }
     }
-    for (int col=0; col<margin_search_x_bound; ++col) {
-        for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound; --row) {
+    found_margin = false;
+    for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
+        for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
             if (edge_chase(filtered_image, row, col, W_E)) {
-                Y_stop[0] = row;
-                Y_stop[1] = col;
-                break;
+                Y_corner->row = row;
+                Y_corner->col = col;
+                Y_corner->row_confidence = true;
+                Y_corner->col_confidence = false;
+                found_margin = true;
             }
         }
     }
-    BL_corner[0] = max(X_stop[0], Y_stop[0]);
-    BL_corner[1] = min(X_stop[1], Y_stop[1]);
+    CornerCandidate::pick_col(BL_corner, *X_corner, *Y_corner, min);
+    CornerCandidate::pick_row(BL_corner, *X_corner, *Y_corner, max);
+    delete X_corner;
+    delete Y_corner;
 
     // Bottom right corner search
-    X_stop[0] = filtered_image.size[0] - 1; X_stop[1] = filtered_image.size[1] - 1;
-    Y_stop[0] = filtered_image.size[0] - 1; Y_stop[1] = filtered_image.size[1] - 1;
-    for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound; --row) {
-        for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound; --col) {
+    X_corner = new CornerCandidate(filtered_image.size[1] - 1, filtered_image.size[0] - 1, false, false);
+    Y_corner = new CornerCandidate(filtered_image.size[1] - 1, filtered_image.size[0] - 1, false, false);
+    found_margin = false;
+    for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
+        for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
             if (edge_chase(filtered_image, row, col, S_N)) {
-                X_stop[0] = row;
-                X_stop[1] = col;
-                break;
+                X_corner->row = row;
+                X_corner->col = col;
+                X_corner->row_confidence = false;
+                X_corner->col_confidence = true;
+                found_margin = true;
             }
         }
     }
-    for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound; --col) {
-        for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound; --row) {
+    found_margin = false;
+    for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
+        for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
             if (edge_chase(filtered_image, row, col, E_W)) {
-                Y_stop[0] = row;
-                Y_stop[1] = col;
-                break;
+                Y_corner->row = row;
+                Y_corner->col = col;
+                Y_corner->row_confidence = true;
+                Y_corner->col_confidence = false;
+                found_margin = true;
             }
         }
     }
+    CornerCandidate::pick_col(BR_corner, *X_corner, *Y_corner, max);
+    CornerCandidate::pick_row(BR_corner, *X_corner, *Y_corner, max);
+    delete X_corner;
+    delete Y_corner;
 
-    BR_corner[0] = max(X_stop[0], Y_stop[0]);
-    BR_corner[1] = max(X_stop[1], X_stop[1]);
+    CornerCandidate::pick_col(TL_corner, TL_corner, BL_corner, min);
+    CornerCandidate::pick_col(BR_corner, BR_corner, TR_corner, max);
+    CornerCandidate::pick_row(TL_corner, TL_corner, TR_corner, min);
+    CornerCandidate::pick_row(BR_corner, BR_corner, BL_corner, max);
 
     // The rectangle that represents the page frame
-    int y_offset = min(TL_corner[0], TR_corner[0]);
-    int x_offset = min(TL_corner[1], BL_corner[1]);
-
-    int height = max(BL_corner[0], BR_corner[0]) - y_offset - 1;
-    int width = max(TR_corner[1], BR_corner[1]) - x_offset - 1;
-    return {x_offset, y_offset, width, height};
+    int height = BR_corner.row - TL_corner.row;
+    int width = BR_corner.col - TL_corner.col;
+    return {TL_corner.col, TL_corner.row, width, height};
 }
 
-bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
+bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::vector<Point> &contour) {
     void (*next_pixel) (int &row, int &col);
     void (*line_fit) (float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col);
+    void (*skip_ahead) (int &row, int &col, int skip);
 
     switch (chase_direction) {
         case W_E:
             next_pixel = next_pixel_W_E;
             line_fit = line_fit_W_E;
+            skip_ahead = skip_ahead_W_E;
             break;
         case E_W:
             next_pixel = next_pixel_E_W;
             line_fit = line_fit_E_W;
+            skip_ahead = skip_ahead_E_W;
             break;
         case N_S:
             next_pixel = next_pixel_N_S;
             line_fit = line_fit_N_S;
+            skip_ahead = skip_ahead_N_S;
             break;
         case S_N:
             next_pixel = next_pixel_S_N;
             line_fit = line_fit_S_N;
+            skip_ahead = skip_ahead_S_N;
             break;
         default:
             std::cerr<<"edge_chasing.edge_chase(): Possible directions are West -> East, East -> West, North -> South, South -> North\n";
@@ -269,7 +313,10 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     col = projected_col;
                     next_state = KEEP_CHASING;
                 }
-                else return false;
+                else {
+                    skip_ahead(row, col, iterations + i -1);
+                    return false;
+                }
 
                 break;
             default:
@@ -293,6 +340,22 @@ void next_pixel_N_S(int &row, int &col) {
 
 void next_pixel_S_N(int &row, int &col) {
     row -= 1;
+}
+
+void skip_ahead_W_E(int &row, int &col, int skip) {
+    col += skip;
+}
+
+void skip_ahead_E_W(int &row, int &col, int skip) {
+    col -= skip;
+}
+
+void skip_ahead_N_S(int &row, int &col, int skip) {
+    row += skip;
+}
+
+void skip_ahead_S_N(int &row, int &col, int skip) {
+    row -= skip;
 }
 
 void line_fit_W_E(float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
@@ -329,4 +392,83 @@ void line_fit_S_N(float M, int start_row, int start_col, int curr_row, int curr_
 
 bool valid_pixel(const Mat &image, int row, int col) {
     return row < image.size[0] && col < image.size[1];
+}
+
+void CornerCandidate::pick_col(CornerCandidate &target, CornerCandidate &c1, CornerCandidate &c2,
+                               int (*col_discriminating_func) (int, int)) {
+    if (!c1.col_confidence && !c2.col_confidence && !c1.row_confidence && !c2.row_confidence) return;
+    else if (c1.col_confidence && c2.col_confidence) {
+        target.col_confidence = true;
+        target.col = col_discriminating_func(c1.col, c2.col);
+    }
+    else if (c1.col_confidence && !c2.col_confidence) {
+        target.col_confidence = true;
+        target.col = c1.col;
+    }
+    else if (!c1.col_confidence && c2.col_confidence) {
+        target.col_confidence = true;
+        target.col = c2.col;
+    }
+    else if (c2.row_confidence && c1.row_confidence) {
+        target.col_confidence = false;
+        target.col = col_discriminating_func(c1.col, c2.col);
+    }
+    else if (!c1.row_confidence && c2.row_confidence) {
+        target.col_confidence = false;
+        target.col = c2.col;
+    }
+    else if (c1.row_confidence && !c2.row_confidence) {
+        target.col_confidence = false;
+        target.col = c1.col;
+    }
+    else {
+        std::cerr<<"page_frame.pick_col(): unexpected input combination\n";
+        exit(1);
+    }
+}
+
+void CornerCandidate::pick_row(CornerCandidate &target, CornerCandidate &c1, CornerCandidate &c2,
+                               int (*row_discriminating_func) (int, int)) {
+    if (!c1.col_confidence && !c2.col_confidence && !c1.row_confidence && !c2.row_confidence) return;
+    else if (c1.row_confidence && c2.row_confidence) {
+        target.row_confidence = true;
+        target.row = row_discriminating_func(c1.row, c2.row);
+    }
+    else if (c1.row_confidence && !c2.row_confidence) {
+        target.row_confidence = true;
+        target.row = c1.row;
+    }
+    else if (!c1.row_confidence && c2.row_confidence) {
+        target.row_confidence = true;
+        target.row = c2.row;
+    }
+    else if (c2.col_confidence && c1.col_confidence) {
+        target.row_confidence = false;
+        target.row = row_discriminating_func(c1.row, c2.row);
+    }
+    else if (!c1.col_confidence && c2.col_confidence) {
+        target.row_confidence = false;
+        target.row = c2.row;
+    }
+    else if (c1.col_confidence && !c2.col_confidence) {
+        target.row_confidence = false;
+        target.row = c1.row;
+    }
+    else {
+        std::cerr<<"page_frame.pick_col(): unexpected input combination\n";
+        exit(1);
+    }
+}
+
+PageFrame::PageFrame(int chase_depth, int tolerance_factor, int allow_shift) {
+    CHASE_DEPTH = chase_depth;
+    TOLERANCE_FACTOR = tolerance_factor;
+    ALLOW_SHIFT = allow_shift;
+}
+
+CornerCandidate::CornerCandidate(int col, int row, bool col_confidence, bool row_confidence) {
+    this->col = col;
+    this->row = row;
+    this->col_confidence = col_confidence;
+    this->row_confidence = row_confidence;
 }
