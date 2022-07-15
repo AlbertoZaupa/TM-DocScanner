@@ -1,7 +1,3 @@
-//
-// Created by Alberto Zaupa on 12/07/22.
-//
-
 #include "processing.h"
 #include "utility.h"
 #include "opencv2/opencv.hpp"
@@ -13,7 +9,6 @@ Rect erosion(const Mat &filtered_image, int EROSION_BOUNDARY) {
     // of width IMAGE_WIDTH/2 and height IMAGE_HEIGHT/2
     int margin_search_x_bound = filtered_image.size[1] / 2;
     int margin_search_y_bound = filtered_image.size[0] / 2;
-
     // The erosion algorithm has aims to find the corners of the image. Its behavior can be pictured as a square moving 
     // from left to right, right to left, top to bottom and bottom to top, and stopping as soon as its leading side finds
     // a straight white line. 
@@ -239,7 +234,7 @@ Mat stats_based_image_binarization(const Mat &input_image, int BLOCK_SIZE, int C
     block_stats(binarized_image, chunk_mean_matrix, chunk_var_matrix, CHUNK_SIZE);
     float var_th = mmean(var_matrix, offset, input_image.size[0]-offset, offset, input_image.size[1]-offset);
 
-    binarized_image.forEach<unsigned char>([input_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, CORRECTION_OFFSET] (unsigned char &value, const int* position) -> void
+    binarized_image.forEach<unsigned char>([input_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, mean_matrix, var_matrix, CORRECTION_OFFSET] (unsigned char &value, const int* position) -> void
     {
         if (position[0] < offset || position[1] < offset || position[0] >= input_image.size[0]-offset || position[1] >= input_image.size[1]-offset) {
             value = 255;

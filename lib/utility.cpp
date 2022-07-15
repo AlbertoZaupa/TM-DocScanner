@@ -101,6 +101,29 @@ int mmode(unsigned char** mat, int y_low, int y_high, int x_low, int x_high) {
 }
 
 /*
+ The function computes the mode of an image
+*/
+
+int imode(Mat mat) {
+    int histogram[256]; for (int i=0; i<256; ++i) histogram[i] = 0;
+
+    for (int i=0; i<mat.size[0]; ++i) {
+        for (int j=0; j<mat.size[1]; ++j) {
+            histogram[mat.at<unsigned char>(i, j)]++;
+        }
+    }
+
+    int mode = 0;
+    for (int i=0; i<256; ++i) {
+        if (histogram[i] > histogram[mode]) {
+            mode = i;
+        }
+    }
+
+    return mode;
+}
+
+/*
  The function computes the minimum value of an image
 */
 
@@ -170,6 +193,20 @@ float mmean(Mat m, int y_low, int y_high, int x_low, int x_high) {
         mean += partial_mean /= (x_high - x_low);
     }
     return mean / (y_high - y_low);
+}
+
+/*
+ This function computes the mean of an image
+*/
+
+float imean(Mat mat) {
+    long long int sum = 0;
+    for (int i=0; i<mat.size[0]; ++i) {
+        for (int j=0; j<mat.size[1]; ++j) {
+            sum += mat.at<unsigned char>(i, j);
+        }
+    }
+    return (float) sum / (float) (mat.size[0] * mat.size[1]);
 }
 
 /*
@@ -283,11 +320,11 @@ void block_mean(Mat m, unsigned char **mean_matrix, int block_size) {
     for (int i=0; i<m.size[1]; ++i) {
         block_rows_sum[i] = 0;
     }
-    int grey_value;
+    int gray_value;
     for (int col=0; col<m.size[1]; col++) { // O( NB )
         for (int row=0; row<block_size; ++row) {
-            grey_value = m.at<unsigned char>(row, col);
-            block_rows_sum[col] += grey_value;
+            gray_value = m.at<unsigned char>(row, col);
+            block_rows_sum[col] += gray_value;
         }
     }
 
@@ -295,10 +332,10 @@ void block_mean(Mat m, unsigned char **mean_matrix, int block_size) {
     for (int i=offset; i<m.size[0]-offset; ++i) { // O( MN )
         if (i!=offset) {
             for (int j=0; j<m.size[1]; ++j) {
-                grey_value = m.at<unsigned char>(i-offset-1, j);
-                block_rows_sum[j] -= grey_value;
-                grey_value = m.at<unsigned char>(i+offset, j);
-                block_rows_sum[j] += grey_value;
+                gray_value = m.at<unsigned char>(i-offset-1, j);
+                block_rows_sum[j] -= gray_value;
+                gray_value = m.at<unsigned char>(i+offset, j);
+                block_rows_sum[j] += gray_value;
             }
         }
 
@@ -454,4 +491,36 @@ void rescale_matrix(const Mat& m, float desired_max) {
     minMaxLoc(m, &min_value, &max_value);
     float prev_max = max(abs(min_value), abs(max_value));
     rescale_matrix(m, prev_max, desired_max);
+}
+
+/*
+ This function calculates the histogram of a matrix and writes it on a file
+*/
+
+void histogram_to_file(const Mat& m, const char* path) {
+    // The file is opened
+    std::cout<<path<<"\n";
+    FILE* file = fopen(path, "w");
+    if (!file) {
+        std::cerr<<"utility.histogram_to_file(): error opening the file\n";
+        perror("Error: ");
+        exit(1);
+    }
+
+    // The histogram of the image is calculated
+    Mat histogram;
+    int histogram_size = 256; float values_range[] = {0, 256};
+    const float* hist_range[] = {values_range};
+    calcHist(&m, 1, 0, Mat(), histogram, 1, &histogram_size, hist_range);
+
+    // The histogram is written onto the file
+    for (int i=0; i<256; ++i) {
+        fprintf(file, "%f\n", histogram.at<float>(i));
+        if (ferror(file)) {
+            std::cerr<<"utility.histogram_to_file(): error writing on file\n";
+            perror("Error: ");
+            exit(1);
+        }
+    }
+    fclose(file);
 }

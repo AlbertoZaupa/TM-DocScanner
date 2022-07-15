@@ -1,7 +1,7 @@
 #ifndef SERVER_APP_UTILITY_H
 #define SERVER_APP_UTILITY_H
 
-#endif //SERVER_APP_UTILITY_H
+#endif
 
 #include "opencv2/opencv.hpp"
 using namespace cv;
@@ -9,8 +9,10 @@ using namespace cv;
 void print_matrix(unsigned char** mat, int y_low, int y_high, int x_low, int x_high);
 void print_matrix(float** mat, int y_low, int y_high, int x_low, int x_high);
 int mmedian(unsigned char** mat, int y_low, int y_high, int x_low, int x_high);
+float imean(Mat m);
 int imedian(Mat m);
 int mmode(unsigned char** mat, int y_low, int y_high, int x_low, int x_high);
+int imode(Mat mat);
 int min(int a, int b);
 float min(float a, float b);
 unsigned char imin(Mat m);
@@ -30,3 +32,4 @@ int* mhistogram(Mat m, int y_low, int y_high, int x_low, int x_high);
 float othsu_threshold(int* histogram, int block_area);
 void rescale_matrix(const Mat& m, float desired_max);
 void rescale_matrix(const Mat& m, float prev_max, float desired_max);
+void histogram_to_file(const Mat& m, const char* path);
