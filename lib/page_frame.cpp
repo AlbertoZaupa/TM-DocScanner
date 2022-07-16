@@ -6,9 +6,18 @@
 using namespace cv;
 
 int PageFrame::CHASE_DEPTH = 400;
-int PageFrame::TOLERANCE_FACTOR = 20;
-int PageFrame::ALLOW_SHIFT = 4;
 int PageFrame::RUDIMENTARY_DEPTH = 200;
+int PageFrame::MAX_ADJUSTMENTS = 8;
+double PageFrame::TANGENT_TABLE[] = {
+        -0.364, // tan(-20°)
+        -0.268, // tan(-15°)
+        -0.176, // tan(-10°)
+        -0.087, // tan(-5°)
+        0.087, // tan(5°)
+        0.176, // tan(10°)
+        0.268, // tan(15°)
+        0.364, // tan(20°)
+};
 
 /*
  Questa funzione estrae il rettangolo contenente il foglio da scannerizzare ricercandone i 4 angoli.
@@ -192,7 +201,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
     // line_fit è la funzione che determina le coordinate dei pixel che giacciono su una retta descritta dai parametri 
     // M, il coefficiente angolare, start_row e start_col, ovvero il punto da cui ha inizio la retta. 
     // Anche in questo caso l'implementazione dipende dalla direzione dettata da chase_direction.
-    void (*line_fit) (float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col);
+    void (*line_fit) (double M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col);
 
     // L'implementazione di next_pixel e line_fit viene determinata in base a chase_direction
     switch (chase_direction) {
@@ -224,11 +233,13 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
 
     int start_row = row;
     int start_col = col;
+    int projected_row, projected_col;
     next_pixel(row, col);
 
     // Vengono inizializzate le variabili di stato
     int iterations = 1;
-    int last_shift_iteration = 0;
+    int adjustments = 0;
+    double M;
     int current_state;
     int next_state = KEEP_CHASING;
 
@@ -265,105 +276,34 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     if (iterations == PageFrame::CHASE_DEPTH) return true;
                     else next_state = KEEP_CHASING;
                 }
-                else if (iterations - last_shift_iteration >= PageFrame::ALLOW_SHIFT) {
-                    switch (chase_direction) {
-                        case W_E:
-                        case E_W:
-                            if (valid_pixel(image, row, col + 1)) next_state = LOOK_ASIDE_0;
-                            else next_state = LOOK_ASIDE_1;
-                            break;
-                        case N_S:
-                        case S_N:
-                            if (valid_pixel(image, row + 1, col)) next_state = LOOK_ASIDE_0;
-                            else next_state = LOOK_ASIDE_1;
-                    }
-                }
-                else next_state = LOOK_AHEAD;
+                else if (iterations >= PageFrame::CHASE_DEPTH / 2)  next_state = ADJUST_ORIENTATION;
+                else return false;
 
                 break;
-            case LOOK_ASIDE_0:
-                if (chase_direction == W_E || chase_direction == E_W)
-                    gray_value = image.at<unsigned char>(row, col + 1);
-                else
-                    gray_value = image.at<unsigned char>(row + 1, col);
+            case ADJUST_ORIENTATION:
+                if (adjustments == PageFrame::MAX_ADJUSTMENTS) return false;
+
+                // Reset delle variabili di stato
+                M = PageFrame::TANGENT_TABLE[adjustments++];
+                row = start_row;
+                col = start_col;
+                iterations = 1;
+
+                // Stato futuro
+                next_state = FIT_LINE;
+
+                break;
+            case FIT_LINE:
+                line_fit(M, start_row, start_col, row, col, projected_row, projected_col);
+                gray_value = image.at<unsigned char>(projected_row, projected_col);
 
                 // Calcolo dello stato futuro
                 if (gray_value) {
-                    last_shift_iteration = iterations;
                     iterations++;
-                    if (chase_direction == W_E || chase_direction == E_W) ++col;
-                    else ++row;
-
                     if (iterations == PageFrame::CHASE_DEPTH) return true;
-                    else next_state = KEEP_CHASING;
+                    else next_state = FIT_LINE;
                 }
-                else {
-                    switch (chase_direction) {
-                        case W_E:
-                        case E_W:
-                            if (valid_pixel(image, row, col - 1)) next_state = LOOK_ASIDE_1;
-                            else next_state = LOOK_AHEAD;
-                            break;
-                        case N_S:
-                        case S_N:
-                            if (valid_pixel(image, row - 1, col)) next_state = LOOK_ASIDE_1;
-                            else next_state = LOOK_AHEAD;
-                    }
-                }
-
-                break;
-            case LOOK_ASIDE_1:
-                if (chase_direction == W_E || chase_direction == E_W)
-                    gray_value = image.at<unsigned char>(row, col - 1);
-                else
-                    gray_value = image.at<unsigned char>(row - 1, col);
-
-                // Calcolo dello stato futuro
-                if (gray_value) {
-                    last_shift_iteration = iterations;
-                    iterations++;
-                    if (chase_direction == W_E || chase_direction == E_W) --col;
-                    else --row;
-
-                    if (iterations == PageFrame::CHASE_DEPTH) return true;
-                    else next_state = KEEP_CHASING;
-                }
-                else next_state = LOOK_AHEAD;
-
-                break;
-            case LOOK_AHEAD:
-                // In questo stato l'algoritmo guarda avanti lungo la retta che congiunge il pixel di partenza
-                // ed il pixel corrente.
-                float M;
-                if (chase_direction == W_E || chase_direction == E_W)
-                    M = float (row - start_row) / float (col - start_col);
-                else M = float (col - start_col) / float (row - start_row);
-
-                int current_row;
-                int current_col;
-                current_row = row;
-                current_col = col;
-                int projected_row, projected_col;
-                int i;
-                for (i=1; i<PageFrame::CHASE_DEPTH/PageFrame::TOLERANCE_FACTOR && !gray_value; ++i) {
-                    if (iterations + i >= PageFrame::CHASE_DEPTH) return true;
-
-                    next_pixel(current_row, current_col);
-                    line_fit(M, row, col, current_row, current_col, projected_row, projected_col);
-                    if (!valid_pixel(image, projected_row, projected_col)) return false;
-                    gray_value = image.at<unsigned char>(projected_row, projected_col);
-                }
-
-                // Calcolo dello stato futuro
-                if (i < PageFrame::CHASE_DEPTH/PageFrame::TOLERANCE_FACTOR || gray_value) {
-                    iterations += i;
-                    row = projected_row;
-                    col = projected_col;
-                    next_state = KEEP_CHASING;
-                }
-                else {
-                    return false;
-                }
+                else next_state = ADJUST_ORIENTATION;
 
                 break;
             default:
@@ -405,7 +345,7 @@ void skip_ahead_S_N(int &row, int &col, int skip) {
     row -= skip;
 }
 
-void line_fit_W_E(float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
+void line_fit_W_E(double M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
     int dx = curr_col - start_col;
     int dy = M*dx;
 
@@ -413,7 +353,7 @@ void line_fit_W_E(float M, int start_row, int start_col, int curr_row, int curr_
     projected_col = curr_col;
 }
 
-void line_fit_E_W(float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
+void line_fit_E_W(double M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
     int dx = start_col - curr_col;
     int dy = (-M)*dx;
 
@@ -421,7 +361,7 @@ void line_fit_E_W(float M, int start_row, int start_col, int curr_row, int curr_
     projected_col = curr_col;
 }
 
-void line_fit_N_S(float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
+void line_fit_N_S(double M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
     int dx = curr_row - start_row;
     int dy = M*dx;
 
@@ -429,7 +369,7 @@ void line_fit_N_S(float M, int start_row, int start_col, int curr_row, int curr_
     projected_col = start_col + dy;
 }
 
-void line_fit_S_N(float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
+void line_fit_S_N(double M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col) {
     int dx = start_row - curr_row;
     int dy = (-M)*dx;
 
@@ -599,8 +539,8 @@ Rect rudimentary_get_page_frame(const Mat &filtered_image) {
     return {x_offset, y_offset, width, height};
 }
 
-PageFrame::PageFrame(int chase_depth, int tolerance_factor, int allow_shift) {
+PageFrame::PageFrame(int chase_depth, int max_adjustments, int rudimentary_depth) {
     CHASE_DEPTH = chase_depth;
-    TOLERANCE_FACTOR = tolerance_factor;
-    ALLOW_SHIFT = allow_shift;
+    MAX_ADJUSTMENTS = max_adjustments;
+    RUDIMENTARY_DEPTH = rudimentary_depth;
 }
