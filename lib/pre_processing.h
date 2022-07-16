@@ -6,6 +6,12 @@
 #include "opencv2/opencv.hpp"
 using namespace cv;
 
+/*
+ Questo modulo contiene il codice coinvolto nella fase di pre-processing.
+ La classe PreProcessing contiene i parametri del modulo, ed esporta un costruttore per inizializzarne
+ comodamente i valori.
+*/
+
 class PreProcessing {
 
 public:

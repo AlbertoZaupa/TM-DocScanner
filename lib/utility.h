@@ -6,6 +6,11 @@
 #include "opencv2/opencv.hpp"
 using namespace cv;
 
+/**
+Il modulo contiene una serie di funzioni di utility.
+Solo una minima parte di queste viene effettivamente utilizzata.
+**/
+
 void print_matrix(unsigned char** mat, int y_low, int y_high, int x_low, int x_high);
 void print_matrix(float** mat, int y_low, int y_high, int x_low, int x_high);
 int mmedian(unsigned char** mat, int y_low, int y_high, int x_low, int x_high);

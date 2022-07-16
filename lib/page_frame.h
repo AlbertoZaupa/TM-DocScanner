@@ -14,6 +14,13 @@
 #define LOOK_AHEAD 3
 using namespace cv;
 
+/*
+ Questo modulo contiene il codice responsabile di rimuovere lo sfondo dall'immagine, mantenendo solo il rettangolo che
+ contiene il foglio da scannerizzare. Lo sfondo solitamente corrisponde al tavolo su cui è appoggiato il foglio.
+ La classe PageFrame contiene esclusivamente dei parametri, che possono essere inizializzati tramite un apposito
+ costruttore.
+*/
+
 class PageFrame {
 public:
 

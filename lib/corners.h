@@ -3,6 +3,11 @@
 
 #endif
 
+/*
+Questo modulo contiene il codice per scegliere il candidato migliore tra gli angoli
+ottenuti dall'inseguimento di contorni.
+*/
+
 class CornerCandidate {
 public:
     int col, row;

@@ -14,9 +14,21 @@ int FilteringBasedBinarization::CORRECTION_OFFSET = 10;
 int FilteringBasedBinarization::BLUR_KERNEL_SIZE = 51;
 int FilteringBasedBinarization::THRESHOLD = 10;
 
+/*
+ La seguente funzione binarizza un immagine sulla base delle realtive statistiche locali. Come primo passaggio viene 
+ calcolata una maschera che identifica all'interno dell'immagine le regioni contenenti testo scritto, confrontando
+ i valori delle varianze locali calcolati su maschere di dimensioni diverse. Successivamente
+ all'interno di tale maschera vengono anneriti i pixel il cui valore è minore della media locale.
+ L' ipotesi alla base di questo approccio è che nelle zone dell'immagine in cui è contenuto testo scritto 
+ la varianza locale è maggiore della varianza globale.
+*/
+
 Mat StatisticsBasedBinarization::binarize_image(const Mat &input_image) {
     Mat binarized_image = input_image.clone();
     if (binarized_image.channels() == 3) cvtColor(binarized_image, binarized_image, COLOR_RGB2GRAY);
+
+    // Vengono inizializzate le matrici che contengono le statistiche locali dell'immagine. Tali statistiche sono
+    // calcolate su una maschera più piccola, chiamata BLOCK, e su una maschera più grande, chiamata CHUNK.
     auto mean_matrix = new unsigned char*[input_image.size[0]], chunk_mean_matrix = new unsigned char*[input_image.size[0]];
     auto var_matrix = new float*[input_image.size[0]], chunk_var_matrix = new float*[input_image.size[0]];
     for (int i=0; i<input_image.size[0]; ++i) {
@@ -27,8 +39,14 @@ Mat StatisticsBasedBinarization::binarize_image(const Mat &input_image) {
     }
     int offset = CHUNK_SIZE/2;
 
+    // Vegnono calcolate le statistiche locali dell'immagine
     block_stats(binarized_image, mean_matrix, var_matrix, BLOCK_SIZE);
     block_stats(binarized_image, chunk_mean_matrix, chunk_var_matrix, CHUNK_SIZE);
+
+    // Per determinare se un pixel appartiene ad una regione dell'immagine dove è presente del testo, il valore della
+    // relativa varianza locale, calcolata all'interno della maschera di dimensione più grande, viene confrontato con
+    // la media delle varianze locali calcolate all'interno della maschera più piccola. Se la varianza locale è maggiore
+    // della media delle varianze locali, il pixel fa parte di una regione contenente del testo.
     float var_th = mmean(var_matrix, offset, input_image.size[0]-offset, offset, input_image.size[1]-offset);
 
     binarized_image.forEach<unsigned char>([input_image, offset, var_th, chunk_mean_matrix, chunk_var_matrix, mean_matrix, var_matrix] (unsigned char &value, const int* position) -> void
@@ -63,10 +81,17 @@ Mat StatisticsBasedBinarization::binarize_image(const Mat &input_image) {
     return binarized_image;
 }
 
+/*
+La seguente funzione implementa la binarizzazione dell'immagine utilizzando dei filtri passa-alto. I filtri utilizzati
+sono gli stessi che vengono applicati durante il pre-processing per esaltare le regioni di bordo.
+Il risultato dell'applicazione dei filtri è una maschera che identifica le regioni dove è presente del testo scritto. Per
+completare la binarizzazione, il valore di grigio dei pixel nelle zone che contengono del testo viene confrontato con
+la media locale, se l'intensità di grigio del pixel è minore della media viene portato a 0, altrimenti a 255. 
+*/
+
 Mat FilteringBasedBinarization::binarize_image(const Mat &input_image) {
     Mat binarized_image = input_image.clone();
     if (binarized_image.channels() == 3) cvtColor(binarized_image, binarized_image, COLOR_RGB2GRAY);
-    // For each pixel of the image the mean of the surrounding block is computed
     auto mean_matrix = new unsigned char*[input_image.size[0]];
     for (int i=0; i<input_image.size[0]; ++i) {
         mean_matrix[i] = new unsigned char[input_image.size[1]];
@@ -76,7 +101,6 @@ Mat FilteringBasedBinarization::binarize_image(const Mat &input_image) {
     }
     block_mean(binarized_image, mean_matrix, BLOCK_SIZE);
 
-    // The binarization step
     Mat mask = input_image.clone();
     GaussianBlur(mask, mask, Size(BLUR_KERNEL_SIZE, BLUR_KERNEL_SIZE), 0, 0);
     mask = edge_detection(mask);
@@ -96,7 +120,6 @@ Mat FilteringBasedBinarization::binarize_image(const Mat &input_image) {
         }
     });
 
-    // Memory cleanup
     for (int i=0; i<input_image.size[0]; ++i) delete[] mean_matrix[i];
     delete[] mean_matrix;
     mask.deallocate();

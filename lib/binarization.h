@@ -6,6 +6,14 @@
 #include "opencv2/opencv.hpp"
 using namespace cv;
 
+/*
+ Questo modulo contiene il codice per effettuare la binarizzazione dell'immagine. Sono presenti due classi, ognuna
+ delle quali contiene dei parametri, un costruttore per inizializzarli, ed una funzione binarize_image che realizza
+ la binarizzazione dell'immagine.
+ Le due classi sono rappresentative di due possibili approcci alla binarizzazione, uno basato esclusivamente sull'
+ estrazione di media e varianza dell'immagine ed uno che sfrutta anche dei filtri passa alto.
+*/
+
 class StatisticsBasedBinarization {
 public:
     static int BLOCK_SIZE;

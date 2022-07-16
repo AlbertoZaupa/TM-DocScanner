@@ -6,4 +6,8 @@
 #include "opencv2/opencv.hpp"
 using namespace cv;
 
+/*
+Questo modulo esporta una funzione che mette insieme i vari passaggi della pipeline di elaborazione dell'immagine
+*/
+
 Mat execute_processing_pipeline(const Mat &input_image);
