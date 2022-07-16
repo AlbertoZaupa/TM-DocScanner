@@ -31,9 +31,9 @@ public:
     explicit PageFrame(int chase_depth, int max_adjustments, int rudimentary_depth);
 };
 
-Rect get_page_frame(const Mat &filtered_image);
+Rect get_page_frame(const Mat &base_image, const Mat &filtered_image);
 Rect rudimentary_get_page_frame(const Mat &filtered_image);
-bool edge_chase(const Mat &image, int row, int col, int chase_direction);
+bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::vector<Point> &contour);
 bool valid_pixel(const Mat &image, int row, int col);
 
 void next_pixel_W_E(int &row, int &col);

@@ -10,7 +10,7 @@ Mat execute_processing_pipeline(const Mat &input_image) {
     Mat pre_processed_image = pre_process_image(input_image);
 
     // Estrazione della cornice che contiene la pagina
-    Rect page_frame = get_page_frame(pre_processed_image);
+    Rect page_frame = get_page_frame(input_image, pre_processed_image);
 
     // Binarizzazione dell'immagine
     Mat binarized_image = StatisticsBasedBinarization::binarize_image(input_image(page_frame));
