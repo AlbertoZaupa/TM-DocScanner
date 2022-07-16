@@ -73,8 +73,8 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
     }
 
     // Mettendo tutto insieme, il numero di operazioni effettuato dall'algoritmo è circa
-    // (N - K)( 4(M - K) + K ) + (2M x K) + M . Dunque, al crescere di M, N e K, con K comunque molto
-    // più piccolo di M ed N, la complessità dell'algoritmo è O(M x N).
+    // (N - K) x ( 4(M - K) + K ) + (2M x K) + M . Dunque, al crescere di M, N e K, con K comunque molto
+    // più piccolo di M ed N, la complessità dell'algoritmo è O(M x N), e non dipende moltiplicativamente da K.
 }
 
 /*

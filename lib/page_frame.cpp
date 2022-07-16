@@ -19,9 +19,10 @@ int PageFrame::RUDIMENTARY_DEPTH = 200;
  di pixel bianchi diretta verso il basso, che parta da quel pixel.
  Se una linea di questo tipo viene trovata, il pixel diventa un candidato per l'angolo ricercato.
  Successivamente l'immagine viene nuovamente attraversata partendo dal pixel in (0, 0), questa volta però
- scorredone le righe, alla ricerca di un pixel bianco da cui abbia inizio un linea bianca diretta da destra a sinista.
+ scorredone le righe, alla ricerca di un pixel bianco da cui abbia inizio un linea bianca diretta da sinistra a destra.
  I candidati ottenuti scorrendo le righe e le colonne vengono confrontati tramite delle funzioni apposite del
  modulo corners.h, per determinare la posizione dell'angolo in alto a sinistra.
+ Tramite un procedimento analogo vengono ricercati gli angoli in basso a sinistra, in basso a destra ed in alto a destra.
 */
 
 Rect get_page_frame(const Mat &filtered_image) {
@@ -99,7 +100,7 @@ Rect get_page_frame(const Mat &filtered_image) {
             }
         }
     }
-    // Confronto dei candati
+    // Confronto dei candidati
     TR_corner.pick_col(X_corner, Y_corner, max);
     TR_corner.pick_row(X_corner, Y_corner, min);
 
@@ -165,7 +166,9 @@ Rect get_page_frame(const Mat &filtered_image) {
     BR_corner.pick_col(X_corner, Y_corner, max);
     BR_corner.pick_row(X_corner, Y_corner, max);
 
-    // I 4 angoli ottenuti vengono confrontati per costruire un rettangolo che li contenga tutti e 4.
+    // I 4 angoli ottenuti descrivono un parallelogramma che non necessariamente ha lati perfettamente orizzontali
+    // o perfettamente verticali. Dunque gli angoli vengono confrontati per costruire un rettangolo 
+    // che li contenga tutti e 4. 
     TL_corner.pick_col(TL_corner, BL_corner, min);
     BL_corner.pick_col(BR_corner, TR_corner, max);
     TL_corner.pick_row(TL_corner, TR_corner, min);
@@ -183,12 +186,12 @@ Rect get_page_frame(const Mat &filtered_image) {
 */
 
 bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
-    // next_pixel è la funzione utilizzata per muoversi all'interno dell'immagine secondo la direzione dettata dal parametro
-    // chase_direction. Possibili direzioni sono Nord -> Sud, Sud -> Nord, Ovest -> Est, Est -> Ovest .
+    // next_pixel è la funzione utilizzata per muoversi all'interno dell'immagine secondo la direzione dettata dal 
+    // parametro chase_direction. Possibili direzioni sono Nord -> Sud, Sud -> Nord, Ovest -> Est, Est -> Ovest .
     void (*next_pixel) (int &row, int &col);
-    // line_fit è la funzione che determina le coordinate dei pixel che giacciono su una retta descritta dai parametri M, il coefficiente angolare, 
-    // start_row e start_col, ovvero il punto da cui ha inizio la retta. Anche in questo caso l'implementazione dipende dalla direzione dettata da
-    // chase_direction.
+    // line_fit è la funzione che determina le coordinate dei pixel che giacciono su una retta descritta dai parametri 
+    // M, il coefficiente angolare, start_row e start_col, ovvero il punto da cui ha inizio la retta. 
+    // Anche in questo caso l'implementazione dipende dalla direzione dettata da chase_direction.
     void (*line_fit) (float M, int start_row, int start_col, int curr_row, int curr_col, int &projected_row, int &projected_col);
 
     // L'implementazione di next_pixel e line_fit viene determinata in base a chase_direction
@@ -233,20 +236,23 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
     for (;;) {
         current_state = next_state;
 
-        // La macchina a stati inizia nello stato KEEP_CHASING, in cui ricerca una linea di pixel bianchi esattamente orizzontale o esattamente 
-        // verticale, in base all'implementazione di next_pixel. 
-        // Quando viene trovato un pixel nero, prima di determinare che il pixel di partenza non può essere un angolo, la macchina 
-        // a stati effettua una transizione negli stati LOOK_ASIDE_0 e LOOK_ASIDE_1, in cui guarda al valore dei pixel a destra e a sinistra
-        // o in alto e in basso (in base al valore del parametro chase_direction). Se uno di questi pixel è bianco vuol dire
-        // che la linea attraversata non è perfettamente dritta. Per evitare che vengano inseguite delle rette che hanno tratti molto curvilinei e che quindi
-        // sono dei candidati meno validi per essere un margine del foglio, viene imposto all'algoritmo di inseguire i pixel trovati a lato di quello corrente
-        // solo se in un numero di iterazioni determinato da un parametro, non sono avvenute altre deviazioni dalla linea retta.
-        // Quando intorno al pixel corrente vengono trovati solo pixel neri, oppure quando un pixel laterale bianco non viene inseguito perchè
-        // la macchina a stati si trova in un tratto in cui la linea è molto curvilinea, si passa allo stato LOOK_AHEAD. 
-        // In questo stato l'algoritmo "guarda avanti" per vedere se dopo pochi pixel neri rincomincia la linea bianca. In tal caso l'inseguimento
-        // della riga prosegue, altrimenti si arresta e il pixel di partenza non viene considerato come candidato come angolo della pagina.
-        // Se dopo un numero di iterazioni prefissato l'inseguimento non si è arrestato, il pixel di partenza viene considerato come possibile
-        // candidato per determinare l'angolo della pagina.
+        // La macchina a stati inizia nello stato KEEP_CHASING, in cui ricerca una linea di pixel bianchi esattamente 
+        // orizzontale o esattamente verticale, in base all'implementazione scelta di next_pixel. 
+        // Quando viene trovato un pixel nero, la macchina a stati non conclude immediatamente che il pixel di partenza
+        // non può essere un angolo, ma effettua una transizione negli stati LOOK_ASIDE_0 e LOOK_ASIDE_1, 
+        // in cui guarda al valore dei pixel a destra e a sinistra o in alto e in basso (in base al valore del 
+        // parametro chase_direction). Se uno di questi pixel è bianco vuol dire che la linea attraversata
+        // non è perfettamente dritta. Per evitare che vengano inseguite delle rette che hanno tratti molto curvilinei
+        // e che quindi sono dei candidati meno validi per essere un margine del foglio, viene imposto all'algoritmo
+        // di inseguire i pixel bianchi trovati negli stati LOOK_ASIDE_0 e LOOK_ASIDE_1 solo se in un numero
+        // predeterminato di iterazioni consecutive non sono avvenute altre deviazioni dalla linea retta.
+        // Quando intorno al pixel corrente vengono trovati solo pixel neri, oppure quando un pixel laterale 
+        // bianco non viene inseguito perchè la macchina a stati si trova in un tratto in cui la linea è molto 
+        // curvilinea, si passa allo stato LOOK_AHEAD. In questo stato l'algoritmo "guarda avanti" per 
+        // vedere se dopo pochi pixel neri rincomincia la linea bianca. In tal caso l'inseguimento della riga prosegue, 
+        // altrimenti si arresta e il pixel di partenza non viene considerato come possibile angolo della pagina.
+        // Se dopo un numero di iterazioni prefissato l'inseguimento non si è arrestato, il pixel di partenza viene
+        // considerato come possibile angolo.
         switch (current_state) {
             case KEEP_CHASING:
                 next_pixel(row, col);

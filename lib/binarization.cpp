@@ -19,7 +19,7 @@ int FilteringBasedBinarization::THRESHOLD = 10;
  calcolata una maschera che identifica all'interno dell'immagine le regioni contenenti testo scritto, confrontando
  i valori delle varianze locali calcolati su maschere di dimensioni diverse. Successivamente
  all'interno di tale maschera vengono anneriti i pixel il cui valore è minore della media locale.
- L' ipotesi alla base di questo approccio è che nelle zone dell'immagine in cui è contenuto testo scritto 
+ L'ipotesi alla base di questo approccio è che nelle zone dell'immagine in cui è contenuto testo scritto 
  la varianza locale è maggiore della varianza globale.
 */
 
@@ -39,7 +39,7 @@ Mat StatisticsBasedBinarization::binarize_image(const Mat &input_image) {
     }
     int offset = CHUNK_SIZE/2;
 
-    // Vegnono calcolate le statistiche locali dell'immagine
+    // Vengono calcolate le statistiche locali dell'immagine
     block_stats(binarized_image, mean_matrix, var_matrix, BLOCK_SIZE);
     block_stats(binarized_image, chunk_mean_matrix, chunk_var_matrix, CHUNK_SIZE);
 

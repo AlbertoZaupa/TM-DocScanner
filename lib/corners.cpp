@@ -6,19 +6,24 @@
 Quando durante l'inseguimento di contorni viene trovato un pixel che può corrispondere ad un angolo
 del foglio, si registra anche quanto peso dare a tale pixel nel determinare ciascuna delle due coordinate
 dell'angolo ricercato.
-Un candidato ottenuto scorrendo l'immagine dall'alto verso il basso, ricercando rette orizzontali
-darà molta influenza alla scelta della coordinata y e non molta per la scelta della coordinata x. L'esatto
+Un candidato ottenuto scorrendo l'immagine dall'alto verso il basso, ricercando rette orizzontali,
+sarà molto influente nella scelta della coordinata y e non molto nella la scelta della coordinata x. L'esatto
 opposto vale per un candidato ottenuto scorrendo l'immagine da sinistra a destra.
 E' possibile che durante la ricerca di un angolo, la ricerca di contorni non dia nessun candidato. In questo
 caso se non sono stati trovati candidati nè lungo l'asse x nè lungo l'asse y, viene scelto come candidato il
 rispettivo estremo dell'immagine (ad esempio durante la ricerca dell'angolo in alto a sinistra verrebbe scelto
 il pixel (0, 0) ).
 
-Il codice per scegliere il miglior candidato tra quelli trovati durante l'estrazione dei contorni è utilizzato anche,
-una volta che i 4 angoli del foglio sono stati determinati, per costruire il rettangolo che contiene tutti gli angoli.
-In questa scelta viene data massima influenza agli angoli ottenuti dalla scelta di due candidati, poi vengono
+Il codice per scegliere il miglior candidato tra quelli trovati durante l'estrazione dei contorni è utilizzato anche
+una volta che i 4 angoli del foglio sono stati determinati, per determinare il rettangolo che contiene tutti gli angoli.
+In questa scelta viene data massima influenza agli angoli ottenuti confrontando due candidati, poi vengono
 considerati gli angoli ottenuti da un solo candidato ed infine gli angoli corrispondenti agli estremi della pagina. 
-Per scegliere tra candidati con lo stesso livello di influenza, se ne prende o il massimo o il minimo.
+Per scegliere tra candidati con lo stesso livello di influenza, se ne prende o il massimo o il minimo, in base a quale
+angolo del rettangolo si sta cercando.
+
+Le funzioni pick_col e pick_row sono implementate come una tabella di verità costruita dalle variabili booleane che
+rappresentano l'influenza da attribuire ai candidati nella scelta, rispettivamente, di coordinata y ed x dell'angolo.
+Dunque la tabella di verità è a 4 variabili. Per ciascuna combinazione di valori viene descritto l'output desiderato.
 */
 
 void CornerCandidate::pick_col(CornerCandidate c1, CornerCandidate c2, int (*col_discriminating_func) (int, int)) {

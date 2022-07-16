@@ -18,7 +18,7 @@ Mat pre_process_image(const Mat &input_image) {
     // di rimuovere dall'immagine le variazioni locali, mantenendo il più possibile evidenti i punti di bordo tra
     // gli oggetti dell'immagine, determina pesantemente l'efficacia dell'estrazione della pagina.
     // Il filtro mediano sfuoca pesantemente il testo scritto all'interno del foglio scannerizzato ed il rumore
-    // di bordo, mentre mantiene abbastanza evidenti i bordi del foglio scannerizzato.
+    // di bordo, mentre mantiene abbastanza evidenti i bordi del foglio.
     medianBlur(output_image, output_image, PreProcessing::BLUR_KERNEL_SIZE);
 
     // Il risultato viene filtrato tramite dei passa-alto per evidenziare i bordi dell'immagine.
@@ -28,7 +28,7 @@ Mat pre_process_image(const Mat &input_image) {
 }
 
 /*
- La seguente funzione estrae i bordi dell'immagine. Questo passaggio consiste in un filtraggio tramite passa-alto,
+ La seguente funzione risalta i bordi dell'immagine. Questa fase consiste in un filtraggio tramite passa-alto,
  realizzato in 4 passaggi: sinistra -> destra, destra -> sinistra, alto -> basso, basso -> alto.
  La maschera base del kernel è [ -1 0 1 ].
 */
@@ -84,7 +84,7 @@ Mat edge_detection(const Mat &input_image) {
     left_right_output.deallocate(); right_left_output.deallocate(); top_bottom_output.deallocate(); bottom_top_output.deallocate();
     left_right_filter.deallocate(); right_left_filter.deallocate(); top_bottom_filter.deallocate(); bottom_top_filter.deallocate();
 
-    // Il risultato viene filtrato tramite un passabasso, e successivamente binarizzato applicando una soglia.
+    // Il risultato viene filtrato tramite un passa-basso, e successivamente binarizzato applicando una soglia.
     // Queste due operazioni hanno l'effetto di ripulire l'immagine filtrata da "falsi" bordi, e di inspessire i bordi
     // reali.
     GaussianBlur(filtered_image, filtered_image, Size(PreProcessing::BLUR_KERNEL_SIZE, PreProcessing::BLUR_KERNEL_SIZE), 0, 0);

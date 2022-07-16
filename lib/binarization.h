@@ -11,7 +11,7 @@ using namespace cv;
  delle quali contiene dei parametri, un costruttore per inizializzarli, ed una funzione binarize_image che realizza
  la binarizzazione dell'immagine.
  Le due classi sono rappresentative di due possibili approcci alla binarizzazione, uno basato esclusivamente sull'
- estrazione di media e varianza dell'immagine ed uno che sfrutta anche dei filtri passa alto.
+ estrazione di statistiche dell'immagine ed uno che sfrutta anche dei filtri passa alto.
 */
 
 class StatisticsBasedBinarization {
