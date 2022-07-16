@@ -7,16 +7,14 @@ using namespace cv;
 
 int PageFrame::CHASE_DEPTH = 400;
 int PageFrame::RUDIMENTARY_DEPTH = 200;
-int PageFrame::MAX_ADJUSTMENTS = 8;
+int PageFrame::MAX_ADJUSTMENTS = 6;
 double PageFrame::TANGENT_TABLE[] = {
-        -0.364, // tan(-20°)
         -0.268, // tan(-15°)
         -0.176, // tan(-10°)
         -0.087, // tan(-5°)
         0.087, // tan(5°)
         0.176, // tan(10°)
         0.268, // tan(15°)
-        0.364, // tan(20°)
 };
 
 /*
@@ -292,23 +290,20 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::ve
     for (;;) {
         current_state = next_state;
 
-        // La macchina a stati inizia nello stato KEEP_CHASING, in cui ricerca una linea di pixel bianchi esattamente 
+        // L'automa a stati inizia nello stato KEEP_CHASING, in cui ricerca una linea di pixel bianchi esattamente 
         // orizzontale o esattamente verticale, in base all'implementazione scelta di next_pixel. 
-        // Quando viene trovato un pixel nero, la macchina a stati non conclude immediatamente che il pixel di partenza
-        // non può essere un angolo, ma effettua una transizione negli stati LOOK_ASIDE_0 e LOOK_ASIDE_1, 
-        // in cui guarda al valore dei pixel a destra e a sinistra o in alto e in basso (in base al valore del 
-        // parametro chase_direction). Se uno di questi pixel è bianco vuol dire che la linea attraversata
-        // non è perfettamente dritta. Per evitare che vengano inseguite delle rette che hanno tratti molto curvilinei
-        // e che quindi sono dei candidati meno validi per essere un margine del foglio, viene imposto all'algoritmo
-        // di inseguire i pixel bianchi trovati negli stati LOOK_ASIDE_0 e LOOK_ASIDE_1 solo se in un numero
-        // predeterminato di iterazioni consecutive non sono avvenute altre deviazioni dalla linea retta.
-        // Quando intorno al pixel corrente vengono trovati solo pixel neri, oppure quando un pixel laterale 
-        // bianco non viene inseguito perchè la macchina a stati si trova in un tratto in cui la linea è molto 
-        // curvilinea, si passa allo stato LOOK_AHEAD. In questo stato l'algoritmo "guarda avanti" per 
-        // vedere se dopo pochi pixel neri rincomincia la linea bianca. In tal caso l'inseguimento della riga prosegue, 
-        // altrimenti si arresta e il pixel di partenza non viene considerato come possibile angolo della pagina.
-        // Se dopo un numero di iterazioni prefissato l'inseguimento non si è arrestato, il pixel di partenza viene
-        // considerato come possibile angolo.
+        // Quando viene trovato un pixel nero e se l'inseguimento si è interrotto dopo una sequenza di lunghezza
+        // predefinita di avanzamenti che hanno avuto successo, l'automa non conclude immediatamente che il pixel
+        // di partenza non può essere un angolo, ma effettua una transizione verso lo stato ADJUST_ORIENTATION.
+        // Se l'inseguimento invece si interrompe dopo una breve sequenza di pixel bianchi, il pixel di partenza non 
+        // può essere un angolo.
+        // Fintanto che si trova nello stato KEEP_CHASING, l'automa cerca di inseguire rette perfettamente orizzontali
+        // o perfettamente verticali. Quando entra in ADJUST_ORIENTATION cerca di cambiare l'orientazione della retta da
+        // inseguire ed entra nello stato FIT_LINE.
+        // La prima volta l'orientazione scelta forma un angolo di -15° rispetto all'orizzontale, se l'inseguimento lungo
+        // tale retta fallisce, l'automa prova con un'orientazione pari a -10°, se fallisce di nuovo ritenta con
+        // orientazione pari a -5°, quindi 5°, 10°, e 15°. Se di nuovo fallisce l'automa decreta finalmente che
+        // il pixel di partenza non può essere un angolo.
         switch (current_state) {
             case KEEP_CHASING:
                 next_pixel(row, col);
@@ -327,6 +322,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::ve
 
                 break;
             case ADJUST_ORIENTATION:
+                // Dopo 6 tentativi di aggiustamento dell'angolo, l'automa si arrende.
                 if (adjustments == PageFrame::MAX_ADJUSTMENTS) return false;
 
                 // Reset delle variabili di stato
