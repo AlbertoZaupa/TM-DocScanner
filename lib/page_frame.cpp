@@ -290,6 +290,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
 
                 break;
             case FIT_LINE:
+                next_pixel(row, col);
                 line_fit(M, start_row, start_col, row, col, projected_row, projected_col);
                 gray_value = image.at<unsigned char>(projected_row, projected_col);
 
