@@ -25,7 +25,18 @@ int PageFrame::RUDIMENTARY_DEPTH = 200;
  Tramite un procedimento analogo vengono ricercati gli angoli in basso a sinistra, in basso a destra ed in alto a destra.
 */
 
-Rect get_page_frame(const Mat &filtered_image) {
+Rect get_page_frame(const Mat &base_image, const Mat &filtered_image) {
+    std::vector<std::vector<Point>> contours = std::vector<std::vector<Point>>();
+    std::vector<std::vector<Point>> corners = std::vector<std::vector<Point>>();
+    Scalar TL_color(255, 255, 0);
+    Scalar TR_color(255, 0, 0);
+    Scalar BL_color(0, 255, 0);
+    Scalar BR_color(0, 0, 255);
+    Mat contours_drawing = filtered_image.clone();
+    cvtColor(contours_drawing, contours_drawing, COLOR_GRAY2RGB);
+    for (int i=0; i<8; ++i) contours.emplace_back();
+    for (int i=0; i<4; ++i) corners.emplace_back();
+
     // La ricerca degli angoli si arresta a metà dell'immagine, sotto l'ipotesi che il foglio da scannerizare si trovi
     // a cavallo, almeno in parte, dei quattro quadranti dell'immagine.
     int margin_search_x_bound = filtered_image.size[1] / 2;
@@ -48,30 +59,38 @@ Rect get_page_frame(const Mat &filtered_image) {
     // va dall'alto verso il basso, mentre quando l'immagine è attraversata da Nord a Sud va da sinistra a destra.
     for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
         for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
-            if (edge_chase(filtered_image, row, col, N_S)) {
+            if (edge_chase(filtered_image, row, col, N_S, contours[0])) {
                 X_corner.row = row;
                 X_corner.col = col;
                 X_corner.row_confidence = false;
                 X_corner.col_confidence = true;
                 found_margin = true;
             }
+            else contours[0].clear();
         }
     }
     found_margin = false;
     for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
         for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
-            if (edge_chase(filtered_image, row, col, W_E)) {
+            if (edge_chase(filtered_image, row, col, W_E, contours[1])) {
                 Y_corner.row = row;
                 Y_corner.col = col;
                 Y_corner.row_confidence = true;
                 Y_corner.col_confidence = false;
                 found_margin = true;
             }
+            else contours[1].clear();
         }
     }
+    if (contours[0].empty()) contours[0].emplace_back(0, 0);
+    drawContours(contours_drawing, contours, 0, TL_color, 5);
+    if (contours[1].empty()) contours[1].emplace_back(0, 0);
+    drawContours(contours_drawing, contours, 1, TL_color, 5);
     // I candidati ottenuti vengono confrontati per determinare l'angolo in alto a sinistra.
     TL_corner.pick_col(X_corner, Y_corner, min);
     TL_corner.pick_row(X_corner, Y_corner, min);
+    corners[0].emplace_back(TL_corner.col, TL_corner.row);
+    drawContours(contours_drawing, corners, 0, TL_color, 60);
 
     // Ricerca dell'angolo in alto a destra.
     X_corner.init(filtered_image.size[1] - 1, 0, false, false);
@@ -79,30 +98,38 @@ Rect get_page_frame(const Mat &filtered_image) {
     found_margin = false;
     for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
         for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
-            if (edge_chase(filtered_image, row, col, N_S)) {
+            if (edge_chase(filtered_image, row, col, N_S, contours[2])) {
                 X_corner.row = row;
                 X_corner.col = col;
                 X_corner.row_confidence = false;
                 X_corner.col_confidence = true;
                 found_margin = true;
             }
+            else contours[2].clear();
         }
     }
     found_margin = false;
     for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
         for (int row=0; row<margin_search_y_bound && !found_margin; ++row) {
-            if (edge_chase(filtered_image, row, col, E_W)) {
+            if (edge_chase(filtered_image, row, col, E_W, contours[3])) {
                 Y_corner.row = row;
                 Y_corner.col = col;
                 Y_corner.row_confidence = true;
                 Y_corner.col_confidence = false;
                 found_margin = true;
             }
+            else contours[3].clear();
         }
     }
+    if (contours[2].empty()) contours[2].emplace_back(base_image.size[1]-1, 0);
+    drawContours(contours_drawing, contours, 2, TR_color, 5);
+    if (contours[3].empty()) contours[3].emplace_back(base_image.size[1]-1, 0);
+    drawContours(contours_drawing, contours, 3, TR_color, 5);
     // Confronto dei candidati
     TR_corner.pick_col(X_corner, Y_corner, max);
     TR_corner.pick_row(X_corner, Y_corner, min);
+    corners[1].emplace_back(TR_corner.col, TR_corner.row);
+    drawContours(contours_drawing, corners, 1, TR_color, 60);
 
     // Ricerca dell'angolo in basso a sinistra
     X_corner.init(0, filtered_image.size[0] - 1, false, false);
@@ -110,30 +137,38 @@ Rect get_page_frame(const Mat &filtered_image) {
     found_margin = false;
     for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
         for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
-            if (edge_chase(filtered_image, row, col, S_N)) {
+            if (edge_chase(filtered_image, row, col, S_N, contours[4])) {
                 X_corner.row = row;
                 X_corner.col = col;
                 X_corner.row_confidence = false;
                 X_corner.col_confidence = true;
                 found_margin = true;
             }
+            else contours[4].clear();
         }
     }
     found_margin = false;
     for (int col=0; col<margin_search_x_bound && !found_margin; ++col) {
         for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
-            if (edge_chase(filtered_image, row, col, W_E)) {
+            if (edge_chase(filtered_image, row, col, W_E, contours[5])) {
                 Y_corner.row = row;
                 Y_corner.col = col;
                 Y_corner.row_confidence = true;
                 Y_corner.col_confidence = false;
                 found_margin = true;
             }
+            else contours[5].clear();
         }
     }
+    if (contours[4].empty()) contours[4].emplace_back(0, base_image.size[0]-1);
+    drawContours(contours_drawing, contours, 4, BL_color, 5);
+    if (contours[5].empty()) contours[5].emplace_back(0, base_image.size[0]-1);
+    drawContours(contours_drawing, contours, 5, BL_color, 5);
     // Confronto dei candidati
     BL_corner.pick_col(X_corner, Y_corner, min);
     BL_corner.pick_row(X_corner, Y_corner, max);
+    corners[2].emplace_back(BL_corner.col, BL_corner.row);
+    drawContours(contours_drawing, corners, 2, BL_color, 60);
 
     // Ricerca dell'angolo in basso a destra
     X_corner.init(filtered_image.size[1] - 1, filtered_image.size[0] - 1, false, false);
@@ -141,42 +176,51 @@ Rect get_page_frame(const Mat &filtered_image) {
     found_margin = false;
     for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
         for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
-            if (edge_chase(filtered_image, row, col, S_N)) {
+            if (edge_chase(filtered_image, row, col, S_N, contours[6])) {
                 X_corner.row = row;
                 X_corner.col = col;
                 X_corner.row_confidence = false;
                 X_corner.col_confidence = true;
                 found_margin = true;
             }
+            else contours[6].clear();
         }
     }
     found_margin = false;
     for (int col=filtered_image.size[1]-1; col>=filtered_image.size[1]-margin_search_x_bound && !found_margin; --col) {
         for (int row=filtered_image.size[0]-1; row>=filtered_image.size[0]-margin_search_y_bound && !found_margin; --row) {
-            if (edge_chase(filtered_image, row, col, E_W)) {
+            if (edge_chase(filtered_image, row, col, E_W, contours[7])) {
                 Y_corner.row = row;
                 Y_corner.col = col;
                 Y_corner.row_confidence = true;
                 Y_corner.col_confidence = false;
                 found_margin = true;
             }
+            else contours[7].clear();
         }
     }
+    if (contours[6].empty()) contours[6].emplace_back(base_image.size[1]-1, base_image.size[0]-1);
+    drawContours(contours_drawing, contours, 6, BR_color, 5);
+    if (contours[7].empty()) contours[7].emplace_back(base_image.size[1]-1, base_image.size[0]-1);
+    drawContours(contours_drawing, contours, 7, BR_color, 5);
     // Confronto dei candidati
     BR_corner.pick_col(X_corner, Y_corner, max);
     BR_corner.pick_row(X_corner, Y_corner, max);
+    corners[3].emplace_back(BR_corner.col, BR_corner.row);
+    drawContours(contours_drawing, corners, 3, BR_color, 60);
 
     // I 4 angoli ottenuti descrivono un parallelogramma che non necessariamente ha lati perfettamente orizzontali
     // o perfettamente verticali. Dunque gli angoli vengono confrontati per costruire un rettangolo 
     // che li contenga tutti e 4. 
     TL_corner.pick_col(TL_corner, BL_corner, min);
-    BL_corner.pick_col(BR_corner, TR_corner, max);
+    BR_corner.pick_col(BR_corner, TR_corner, max);
     TL_corner.pick_row(TL_corner, TR_corner, min);
-    BL_corner.pick_row(BR_corner, BL_corner, max);
+    BR_corner.pick_row(BR_corner, BL_corner, max);
 
     // Il rettangolo che racchiude il foglio da scannerizzare.
     int height = BR_corner.row - TL_corner.row;
     int width = BR_corner.col - TL_corner.col;
+    imshow("contours", contours_drawing);
     return {TL_corner.col, TL_corner.row, width, height};
 }
 
@@ -185,8 +229,8 @@ Rect get_page_frame(const Mat &filtered_image) {
  dell'immagine. Il sistema è implementato come una macchina a stati.
 */
 
-bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
-    // next_pixel è la funzione utilizzata per muoversi all'interno dell'immagine secondo la direzione dettata dal 
+bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::vector<Point> &contour) {
+    // next_pixel è la funzione utilizzata per muoversi all'interno dell'immagine secondo la direzione dettata dal
     // parametro chase_direction. Possibili direzioni sono Nord -> Sud, Sud -> Nord, Ovest -> Est, Est -> Ovest .
     void (*next_pixel) (int &row, int &col);
     // line_fit è la funzione che determina le coordinate dei pixel che giacciono su una retta descritta dai parametri 
@@ -221,6 +265,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
     unsigned char gray_value;
     gray_value = image.at<unsigned char>(row, col);
     if (!gray_value) return false;
+    contour.emplace_back(col, row);
 
     int start_row = row;
     int start_col = col;
@@ -262,6 +307,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                 // Calcolo dello stato futuro
                 if (gray_value) {
                     iterations++;
+                    contour.emplace_back(col, row);
                     if (iterations == PageFrame::CHASE_DEPTH) return true;
                     else next_state = KEEP_CHASING;
                 }
@@ -294,6 +340,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     if (chase_direction == W_E || chase_direction == E_W) ++col;
                     else ++row;
 
+                    contour.emplace_back(col, row);
                     if (iterations == PageFrame::CHASE_DEPTH) return true;
                     else next_state = KEEP_CHASING;
                 }
@@ -325,6 +372,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     if (chase_direction == W_E || chase_direction == E_W) --col;
                     else --row;
 
+                    contour.emplace_back(col, row);
                     if (iterations == PageFrame::CHASE_DEPTH) return true;
                     else next_state = KEEP_CHASING;
                 }
@@ -352,6 +400,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     line_fit(M, row, col, current_row, current_col, projected_row, projected_col);
                     if (!valid_pixel(image, projected_row, projected_col)) return false;
                     gray_value = image.at<unsigned char>(projected_row, projected_col);
+                    contour.emplace_back(projected_col, projected_row);
                 }
 
                 // Calcolo dello stato futuro
@@ -361,9 +410,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction) {
                     col = projected_col;
                     next_state = KEEP_CHASING;
                 }
-                else {
-                    return false;
-                }
+                else return false;
 
                 break;
             default:
