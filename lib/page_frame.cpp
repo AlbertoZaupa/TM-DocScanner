@@ -349,9 +349,7 @@ bool edge_chase(const Mat &image, int row, int col, int chase_direction, std::ve
                 if (gray_value) {
                     contour.emplace_back(projected_col, projected_row);
                     iterations++;
-                    if (iterations == PageFrame::CHASE_DEPTH) {
-                        return true;
-                    }
+                    if (iterations == PageFrame::CHASE_DEPTH) return true;
                     else next_state = FIT_LINE;
                 }
                 else next_state = ADJUST_ORIENTATION;
