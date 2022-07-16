@@ -452,6 +452,7 @@ Rect rudimentary_get_page_frame(const Mat &filtered_image) {
     int margin_search_x_bound = filtered_image.size[1] / 2;
     int margin_search_y_bound = filtered_image.size[0] / 2;
     int TL_corner[2], TR_corner[2], BL_corner[2], BR_corner[2];
+    unsigned char boundary;
 
     // Top Left corner search
     int X_stop[2] = {0, 0};
