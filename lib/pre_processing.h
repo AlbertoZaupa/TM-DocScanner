@@ -22,5 +22,5 @@ public:
     explicit PreProcessing(int blur_kernel_size, int threshold);
 };
 
-Mat pre_process_image(const Mat &input_image);
+Mat pre_process_image(const Mat &input_image, FILE* fh);
 Mat edge_detection(const Mat &input_image);

@@ -10,8 +10,7 @@ int PreProcessing::HP_KERNEL_SIZE = 11;
  è preparare l'immagine per l'elaborazione successiva, ovvero l'estrazione della pagina.
 */
 
-Mat pre_process_image(const Mat &input_image) {
-
+Mat pre_process_image(const Mat &input_image, FILE* fh) {
     Mat output_image = input_image.clone();
 
     // L'immagine viene filtrata tramite un filtro mediano ad ampia maschera. Questo passaggio, che ha lo scopo
@@ -19,10 +18,18 @@ Mat pre_process_image(const Mat &input_image) {
     // gli oggetti dell'immagine, determina pesantemente l'efficacia dell'estrazione della pagina.
     // Il filtro mediano sfuoca pesantemente il testo scritto all'interno del foglio scannerizzato ed il rumore
     // di bordo, mentre mantiene abbastanza evidenti i bordi del foglio.
+    auto start = std::chrono::system_clock::now();
     medianBlur(output_image, output_image, PreProcessing::BLUR_KERNEL_SIZE);
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
+    fprintf(fh, "%f\n", elapsed_seconds.count());
 
+    start = std::chrono::system_clock::now();
     // Il risultato viene filtrato tramite dei passa-alto per evidenziare i bordi dell'immagine.
     output_image = edge_detection(output_image);
+    end = std::chrono::system_clock::now();
+    elapsed_seconds = end - start;
+    fprintf(fh, "%f\n", elapsed_seconds.count());
 
     return output_image;
 }
