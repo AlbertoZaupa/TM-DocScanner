@@ -29,13 +29,13 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
     // valore della somma lungo le righe in posizione j - 1 - block_size/2, ed aggiungere il valore della somma 
     // lungo le righe alla posizione j + block_size/2, ed infine dividere per l'area della maschera. 
     long int block_rows_sum[m.size[1]];
-    for (int i=0; i<m.size[1]; ++i) { // M operazioni
+    for (int i=0; i<m.size[1]; ++i) { // c1 x M operazioni
         block_rows_sum[i] = 0;
     }
 
     // Vengono inizializzati i valori delle somme lungo le righe
     int gray_value;
-    for (int col=0; col<m.size[1]; col++) { // 2M x K operazioni
+    for (int col=0; col<m.size[1]; col++) { // c2 x M x K operazioni
         for (int row=0; row<block_size; ++row) {
             gray_value = m.at<unsigned char>(row, col);
             block_rows_sum[col] += gray_value;
@@ -47,7 +47,7 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
         if (i!=offset) {
             // Ogni volta che si passa alla righa successiva, bisogna aggiornare il valore delle somme lungo
             // le righe.
-            for (int j=0; j<m.size[1]; ++j) { // 4M operazioni
+            for (int j=0; j<m.size[1]; ++j) { // c3 x M operazioni
                 gray_value = m.at<unsigned char>(i-offset-1, j);
                 block_rows_sum[j] -= gray_value;
                 gray_value = m.at<unsigned char>(i+offset, j);
@@ -55,7 +55,7 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
             }
         }
 
-        // Il seguente ciclo for consiste in circa 4(M - K) + K operazioni
+        // Il seguente ciclo for consiste in circa c4 x (M - K) + K operazioni
         for (int j=offset; j<m.size[1]-offset; ++j) { // M - K iterazioni
             if (j==offset) { // Questo blocco è eseguito 1 volta su M - K iterazioni
                 moving_sum = 0;
@@ -63,7 +63,7 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
                     moving_sum += block_rows_sum[k];
                 }
             }
-            else { // 4 operazioni
+            else { // c4 operazioni
                 moving_sum -= block_rows_sum[j-offset-1];
                 moving_sum += block_rows_sum[j+offset];
             }
@@ -73,8 +73,8 @@ void block_mean(const Mat &m, unsigned char **mean_matrix, int block_size) {
     }
 
     // Mettendo tutto insieme, il numero di operazioni effettuato dall'algoritmo è circa
-    // (N - K) x ( 4(M - K) + K ) + (2M x K) + M . Dunque, al crescere di M, N e K, con K comunque molto
-    // più piccolo di M ed N, la complessità dell'algoritmo è O(M x N), e non dipende moltiplicativamente da K.
+    // (N - K) x ( c4 x (M - K) + K + c3 x M ) + c2 x M x K + c1 x M . Dunque, al crescere di M, N e K, con K 
+    // comunque molto più piccolo di M ed N, la complessità dell'algoritmo è O(M x N), e non dipende da K.
 }
 
 /*
